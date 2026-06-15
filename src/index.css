@@ -173,3 +173,20 @@ html.dark .sticky-keyboard {
   background-size: 22px 22px;
   border-top: 1.5px solid rgba(235, 235, 245, 0.12);
 }
+
+/* ── Motion Contract (UI-SPEC) — prefers-reduced-motion ───────────────────────
+   The round screen's transitions (the favor-meter gold-fill width, the reaction
+   reveal fade, the end-state takeover) are also gated in JS via matchMedia inside
+   each component. This is the defense-in-depth CSS backstop: when the OS requests
+   reduced motion, collapse every transition/animation to an instant swap so the
+   meter and reveals repaint instantly (no width slide, no fade). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

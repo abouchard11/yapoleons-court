@@ -19,6 +19,7 @@ export default function ReplyInput({
 }: ReplyInputProps) {
   const remaining = maxLength - value.length;
   const nearLimit = remaining <= 25;
+  const counterId = 'reply-counter';
 
   return (
     <div>
@@ -30,6 +31,7 @@ export default function ReplyInput({
         placeholder="The Emperor is waiting. Make it worth his time."
         rows={4}
         aria-label="Your reply to the Emperor"
+        aria-describedby={counterId}
         style={{
           width: '100%',
           resize: 'vertical',
@@ -46,6 +48,8 @@ export default function ReplyInput({
         }}
       />
       <div
+        id={counterId}
+        aria-live={nearLimit ? 'polite' : 'off'}
         style={{
           textAlign: 'right',
           marginTop: '4px',
