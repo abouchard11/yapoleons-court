@@ -91,7 +91,7 @@ const NON_RETRYABLE = new Set([400, 401, 403, 404, 413]);
 
 // ── Outbound alerting (forked; disabled unless ALERT_WEBHOOK_URL is set) ──
 const ALERT_WEBHOOK_URL = process.env.ALERT_WEBHOOK_URL || '';
-const ALERT_TO = process.env.ALERT_TO || 'problem@yapoleonscourt.com';
+const ALERT_TO = process.env.ALERT_TO || 'problem@yapoleon.com';
 const ALERT_SECRET = process.env.ALERT_SECRET || '';
 const ALERT_COOLDOWN_MS = 6 * 60 * 60 * 1000;
 const lastAlertAtByKind = new Map();

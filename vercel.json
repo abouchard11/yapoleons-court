@@ -37,8 +37,8 @@
   "redirects": [
     {
       "source": "/:path(.*)",
-      "has": [{ "type": "host", "value": "www.yapoleonscourt.com" }],
-      "destination": "https://yapoleonscourt.com/:path",
+      "has": [{ "type": "host", "value": "www.yapoleon.com" }],
+      "destination": "https://court.yapoleon.com/:path",
       "statusCode": 301
     }
   ],

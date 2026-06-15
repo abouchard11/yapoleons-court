@@ -6,8 +6,8 @@ export function originAllowed(req) {
   try {
     const host = new URL(src).hostname;
     return (
-      host === 'yapoleonscourt.com' ||
-      host.endsWith('.yapoleonscourt.com') ||
+      host === 'yapoleon.com' ||
+      host.endsWith('.yapoleon.com') ||
       host.endsWith('.vercel.app') ||
       host === 'localhost' ||
       host === '127.0.0.1'

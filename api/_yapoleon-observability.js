@@ -347,7 +347,7 @@ async function sendQualityRepetitionAlert({ newLine, matchedLine, score, request
   try {
     const u = new URL(webhookUrl);
     u.searchParams.set('secret', process.env.ALERT_SECRET || '');
-    u.searchParams.set('to', process.env.ALERT_TO || 'problem@yapoleonscourt.com');
+    u.searchParams.set('to', process.env.ALERT_TO || 'problem@yapoleon.com');
     u.searchParams.set('subject', "[Yapoleon's Court] Yapoleon QUALITY regression — repeated joke in one game");
     u.searchParams.set(
       'text',
