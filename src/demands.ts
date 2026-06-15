@@ -45,9 +45,9 @@ export interface DemandRecord {
   tier: 'fairfight';                 // launch tier only
 }
 
-// The rubric version every Phase-1 demand is stamped with (CONT-03). The
-// calibration task (01-06) may mint a new version when it tunes the curve.
-const RUBRIC = 'fairfight-v0';
+// The rubric version every Phase-1 demand is stamped with (CONT-03). Bumped to
+// fairfight-v1 by the 01-06 calibration when the favor curve was tuned (CALIBRATION.md).
+const RUBRIC = 'fairfight-v1';
 
 // ── The 30 authored demands, grouped by D-03 bucket ──
 export const DEMANDS: DemandRecord[] = [

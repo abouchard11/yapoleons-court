@@ -69,10 +69,10 @@ const JUDGE_SCHEMA = {
 
 // ── Server-owned favor math (the fairness backbone, JUDGE-03) ──
 // Byte-equivalent to src/judge.ts deriveFavorDelta. The ONLY place favorDelta is
-// computed. v0 curve (§B calibration target, Plan 01-06): weighted 0 → -20,
-// weighted 1 → +55.
+// computed. fairfight-v1 curve (CALIBRATED 2026-06-15, Plan 01-06 — byte-equivalent to
+// src/judge.ts): weighted 0 → -28, weighted 1 → +52; mean mid win-rate ~62%. See CALIBRATION.md.
 const clamp01 = (n) => Math.max(0, Math.min(1, Number(n) || 0));
-const mapToBand = (weighted) => Math.round(-20 + weighted * 75);
+const mapToBand = (weighted) => Math.round(-28 + weighted * 80);
 function deriveFavorDelta(axisScores, dayWeights) {
   const weighted = AXES.reduce(
     (sum, ax) => sum + clamp01(axisScores[ax]) * (Number(dayWeights[ax]) || 0),

@@ -10,14 +10,14 @@ const evenWeights = (): Record<Axis, number> =>
   Object.fromEntries(AXES.map((ax) => [ax, 1 / AXES.length])) as Record<Axis, number>;
 
 describe('deriveFavorDelta — the server-owned favor math (JUDGE-03)', () => {
-  it('returns -20 when every weighted axis score is 0 (worst turn = floor of the band)', () => {
-    // weighted = Σ 0 * w = 0  →  mapToBand(0) = -20
-    expect(deriveFavorDelta(uniform(0), evenWeights())).toBe(-20);
+  it('returns -28 when every weighted axis score is 0 (worst turn = floor of the band)', () => {
+    // weighted = Σ 0 * w = 0  →  mapToBand(0) = -28 (fairfight-v1, calibrated 01-06)
+    expect(deriveFavorDelta(uniform(0), evenWeights())).toBe(-28);
   });
 
-  it('returns +55 when the weighted axis score is 1 (best turn = top of the band)', () => {
-    // weighted = Σ 1 * w = 1 (weights sum to 1)  →  mapToBand(1) = +55
-    expect(deriveFavorDelta(uniform(1), evenWeights())).toBe(55);
+  it('returns +52 when the weighted axis score is 1 (best turn = top of the band)', () => {
+    // weighted = Σ 1 * w = 1 (weights sum to 1)  →  mapToBand(1) = +52 (fairfight-v1)
+    expect(deriveFavorDelta(uniform(1), evenWeights())).toBe(52);
   });
 
   it('is a pure function of axisScores + dayWeights (same inputs → same output every call)', () => {
@@ -34,12 +34,12 @@ describe('deriveFavorDelta — the server-owned favor math (JUDGE-03)', () => {
   });
 
   it('clamps axis scores outside [0,1] before weighting (a model returning 1.4 is treated as 1)', () => {
-    // A model emitting 1.4 on every axis must be treated identically to 1.0 → +55.
+    // A model emitting 1.4 on every axis must be treated identically to 1.0 → +52.
     const overshoot = uniform(1.4);
-    expect(deriveFavorDelta(overshoot, evenWeights())).toBe(55);
-    // A model emitting a negative score must be treated as 0 → -20.
+    expect(deriveFavorDelta(overshoot, evenWeights())).toBe(52);
+    // A model emitting a negative score must be treated as 0 → -28.
     const undershoot = uniform(-0.3);
-    expect(deriveFavorDelta(undershoot, evenWeights())).toBe(-20);
+    expect(deriveFavorDelta(undershoot, evenWeights())).toBe(-28);
   });
 
   it('weights matter: a reply scoring high ONLY off-axis yields a smaller delta than one scoring high on the emphasized axis (D-03 structural defense)', () => {

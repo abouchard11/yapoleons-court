@@ -32,17 +32,23 @@ export interface JudgeResult {
 // 1.4 is treated as 1; a negative score as 0; a non-number as 0.
 export const clamp01 = (n: number): number => Math.max(0, Math.min(1, Number(n) || 0));
 
-// v0 curve — the §B calibration target (tuned to a 55–70% median win-rate in
-// Plan 01-06; this is the FIRST guess, deliberately simple/linear).
-//   weighted 0 → −20 (worst turn, the floor of the band)
-//   weighted 1 → +55 (best turn, the top of the band)
-// Solvability invariant holds: max delta 55 × 3 turns = 165 ≥ 100 (METER-03).
-const mapToBand = (weighted: number): number => Math.round(-20 + weighted * 75);
+// fairfight-v1 curve — CALIBRATED 2026-06-15 (Plan 01-06, D-07) via a
+// capture-once-then-fit-offline sweep over a pooled 6-run sample (see CALIBRATION.md).
+// The representative (mid) player's Fair Fight win-rate lands at ~62% (61–63% across two
+// independent live runs; target 55–70%), with weak≈0% / strong≈96% (learnable) and the
+// fixed mold losing on its off-axis days. The CALIBRATION METRIC is the mean/overall mid
+// win-rate: the per-demand median is bimodal/degenerate (~1 of 30 demands is "contested"),
+// so it is not tunable — see CALIBRATION.md "Why mean, not median".
+//   weighted 0 → −28 (worst turn, the floor of the band)
+//   weighted 1 → +52 (best turn, the top of the band)
+// Solvability invariant holds: max delta 52 × 3 turns = 156 ≥ 100 (METER-03).
+const mapToBand = (weighted: number): number => Math.round(-28 + weighted * 80);
+export const RUBRIC_VERSION = 'fairfight-v1';
 
 // deriveFavorDelta — the ONLY place favorDelta is computed (RESEARCH Pitfall 3).
 // Pure function of axisScores + the day's weights:
 //   weighted = Σ_axis clamp01(axisScores[axis]) * dayWeights[axis]   (0..1)
-//   favorDelta = mapToBand(weighted)                                 (−20..+55)
+//   favorDelta = mapToBand(weighted)                                 (−28..+52)
 // Same inputs → same output every call; no mutation of the inputs.
 export const deriveFavorDelta = (
   axisScores: Record<Axis, number>,

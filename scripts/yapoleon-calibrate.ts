@@ -422,6 +422,7 @@ interface RoundResult {
   turns: number;
   ok: boolean;
   detail?: string;
+  turnScores: Record<Axis, number>[]; // raw per-turn axisScores (for offline curve fitting)
 }
 async function simulateRound(
   d: DemandRecord,
@@ -430,18 +431,23 @@ async function simulateRound(
 ): Promise<RoundResult> {
   let favor = 0;
   let turns = 0;
+  let win = false;
+  const turnScores: Record<Axis, number>[] = [];
   for (let t = 0; t < MAX_TURNS; t++) {
     const judged = await callJudge(d.scene, reply, key);
     if (!judged.ok || !judged.axisScores) {
-      return { win: false, favor, turns, ok: false, detail: judged.detail };
+      return { win, favor, turns, ok: false, detail: judged.detail, turnScores };
     }
+    turnScores.push(judged.axisScores);
     // SERVER-SIDE delta — the model NEVER returns it (JUDGE-03 / Pitfall 3).
     const delta = deriveFavorDelta(judged.axisScores, d.axisWeights);
     favor = Math.max(FLOOR_FAVOR, Math.min(WIN_FAVOR, favor + delta));
     turns = t + 1;
-    if (favor >= WIN_FAVOR) return { win: true, favor, turns, ok: true };
+    // Latch the win but keep playing all MAX_TURNS so every round captures full taste
+    // ("won within MAX_TURNS" is the metric; extra turns never unset it).
+    if (favor >= WIN_FAVOR) win = true;
   }
-  return { win: false, favor, turns, ok: true };
+  return { win, favor, turns, ok: true, turnScores };
 }
 
 // ── The calibration run ──
@@ -449,6 +455,8 @@ export interface CalibrationOptions {
   runsPerCell?: number; // ≥3 runs per (demand, archetype); RESEARCH §B floor
   key?: string | null;
   log?: (line: string) => void;
+  maxDemands?: number;   // cap: run only the first N demands (smoke-test)
+  concurrency?: number;  // bounded parallel demands (default 6 → peak 6 concurrent judge calls)
 }
 export interface DemandOutcome {
   id: string;
@@ -459,11 +467,18 @@ export interface DemandOutcome {
   demandWinRate: number;
   fixedMold: { winRate: number; runs: number; medFavor: number; offAxis: boolean };
 }
+export interface DemandCapture {
+  id: string;
+  axisWeights: Record<Axis, number>;
+  // archetype name or 'mold' -> runs -> turns -> raw axisScores (offline curve fitting)
+  cells: Record<string, Record<Axis, number>[][]>;
+}
 export interface CalibrationReport {
   ranAt: string;
   runsPerCell: number;
   totalJudgeCalls: number;
   perDemand: DemandOutcome[];
+  rawCapture?: DemandCapture[];
   medianWinRateMid: number; // headline: median over the 30 demands (mid archetype)
   medianWinRateAll: number; // median over the 30 demands averaging the 3 archetypes
   archetypeWinRate: Record<Archetype, number>; // mean over all demands
@@ -483,6 +498,8 @@ export async function runCalibration(opts: CalibrationOptions = {}): Promise<Cal
   const log = opts.log ?? ((l: string) => console.log(l));
   const key = opts.key ?? loadKey();
   if (!key) throw new Error('Missing GEMINI_API_KEY (looked at env, .env.local, .env)');
+  const demands = opts.maxDemands ? DEMANDS.slice(0, opts.maxDemands) : DEMANDS;
+  const concurrency = Math.max(1, opts.concurrency ?? 6);
 
   const errors: string[] = [];
   let totalJudgeCalls = 0;
@@ -491,17 +508,22 @@ export async function runCalibration(opts: CalibrationOptions = {}): Promise<Cal
   log(`\n${'='.repeat(72)}`);
   log(`YAPOLEON FAIR FIGHT CALIBRATION — win-rate simulator`);
   log(`model: ${JUDGE_MODELS[0]} (fallback ${JUDGE_MODELS[1]}), temp 0.2, thinkingLevel low`);
-  log(`demands: ${DEMANDS.length} · archetypes: weak/mid/strong · runs/cell: ${runsPerCell}`);
+  log(`demands: ${demands.length} · archetypes: weak/mid/strong · runs/cell: ${runsPerCell} · concurrency: ${concurrency}`);
   log(`${'='.repeat(72)}\n`);
 
-  for (const d of DEMANDS) {
+  const processDemand = async (
+    d: (typeof DEMANDS)[number],
+  ): Promise<{ outcome: DemandOutcome; calls: number; errs: string[]; capture: DemandCapture }> => {
+    const errs: string[] = [];
+    let calls = 0;
     const bucket = dominantAxisOf(d);
     const perArchetype = {} as DemandOutcome['perArchetype'];
+    const capture: DemandCapture = { id: d.id, axisWeights: d.axisWeights, cells: {} };
 
     for (const arch of ARCHS) {
       const replies = ARCHETYPE_REPLIES[d.id]?.[arch];
       if (!replies || replies.length === 0) {
-        errors.push(`no ${arch} reply authored for ${d.id}`);
+        errs.push(`no ${arch} reply authored for ${d.id}`);
         perArchetype[arch] = { winRate: NaN, runs: 0, medFavor: NaN };
         continue;
       }
@@ -511,13 +533,14 @@ export async function runCalibration(opts: CalibrationOptions = {}): Promise<Cal
         const reply = replies[r % replies.length];
         // eslint-disable-next-line no-await-in-loop
         const res = await simulateRound(d, reply, key);
-        totalJudgeCalls += res.turns; // count actual judge calls made
+        calls += res.turns; // count actual judge calls made
         if (!res.ok) {
-          errors.push(`${d.id}/${arch} run ${r + 1}: ${res.detail ?? 'judge error'}`);
+          errs.push(`${d.id}/${arch} run ${r + 1}: ${res.detail ?? 'judge error'}`);
           continue;
         }
         wins.push(res.win ? 1 : 0);
         favors.push(res.favor);
+        (capture.cells[arch] ??= []).push(res.turnScores);
       }
       perArchetype[arch] = {
         winRate: wins.length ? mean(wins) : NaN,
@@ -532,13 +555,14 @@ export async function runCalibration(opts: CalibrationOptions = {}): Promise<Cal
     for (let r = 0; r < runsPerCell; r++) {
       // eslint-disable-next-line no-await-in-loop
       const res = await simulateRound(d, FIXED_MOLD, key);
-      totalJudgeCalls += res.turns;
+      calls += res.turns;
       if (!res.ok) {
-        errors.push(`${d.id}/fixed-mold run ${r + 1}: ${res.detail ?? 'judge error'}`);
+        errs.push(`${d.id}/fixed-mold run ${r + 1}: ${res.detail ?? 'judge error'}`);
         continue;
       }
       moldWins.push(res.win ? 1 : 0);
       moldFavors.push(res.favor);
+      (capture.cells.mold ??= []).push(res.turnScores);
     }
     const offAxis = bucket !== 'flattery';
     const fixedMold = {
@@ -549,7 +573,7 @@ export async function runCalibration(opts: CalibrationOptions = {}): Promise<Cal
     };
 
     const demandWinRate = perArchetype.mid.winRate;
-    perDemand.push({ id: d.id, bucket, perArchetype, demandWinRate, fixedMold });
+    const outcome: DemandOutcome = { id: d.id, bucket, perArchetype, demandWinRate, fixedMold };
 
     log(
       `${d.id.padEnd(34)} [${bucket}] ` +
@@ -558,6 +582,31 @@ export async function runCalibration(opts: CalibrationOptions = {}): Promise<Cal
         `strong ${fmtPct(perArchetype.strong.winRate)} | ` +
         `mold ${fmtPct(fixedMold.winRate)}${offAxis ? ' (off-axis)' : ' (on-axis)'}`,
     );
+    return { outcome, calls, errs, capture };
+  };
+
+  // Bounded-concurrency pool over demands (peak ≈ `concurrency` concurrent judge calls,
+  // since each demand's own turns/runs are sequential inside processDemand).
+  const results: {
+    outcome: DemandOutcome;
+    calls: number;
+    errs: string[];
+    capture: DemandCapture;
+  }[] = new Array(demands.length);
+  let nextIdx = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, demands.length) }, async () => {
+      for (let i = nextIdx++; i < demands.length; i = nextIdx++) {
+        results[i] = await processDemand(demands[i]);
+      }
+    }),
+  );
+  const rawCapture: DemandCapture[] = [];
+  for (const res of results) {
+    perDemand.push(res.outcome);
+    totalJudgeCalls += res.calls;
+    errors.push(...res.errs);
+    rawCapture.push(res.capture);
   }
 
   // ── Aggregate ──
@@ -582,6 +631,7 @@ export async function runCalibration(opts: CalibrationOptions = {}): Promise<Cal
     runsPerCell,
     totalJudgeCalls,
     perDemand,
+    rawCapture,
     medianWinRateMid: median(midRates),
     medianWinRateAll: median(allRates),
     archetypeWinRate,
