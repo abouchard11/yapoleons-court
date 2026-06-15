@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- Static pre-JS default (light). applyAppearanceChrome (src/appearance-chrome.ts)
+         rewrites this content at runtime per the resolved appearance: #1C1C1E dark / #FBF6EC light. -->
+    <meta name="theme-color" content="#FBF6EC" />
+
+    <title>Yapoleon's Court — The Daily Game Where You Charm an AI Emperor</title>
+    <meta name="description" content="A daily AI game: win the favor of Yapoleon, a haughty, impossible-to-please emperor, by charming him with a single free-text reply to his daily demand. Free to play." />
+    <link rel="canonical" href="https://yapoleonscourt.com/" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Yapoleon's Court" />
+    <meta property="og:title" content="Yapoleon's Court — Charm the AI Emperor" />
+    <meta property="og:description" content="The daily AI game where you win an emperor's favor with a single witty reply. His taste is the scoring function. Free." />
+    <meta property="og:url" content="https://yapoleonscourt.com/" />
+    <meta property="og:image" content="https://yapoleonscourt.com/og-image.png?v=1" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Yapoleon's Court — Charm the AI Emperor" />
+    <meta name="twitter:description" content="The daily AI game where you win an emperor's favor with a single witty reply. His taste is the scoring function. Free." />
+    <meta name="twitter:image" content="https://yapoleonscourt.com/og-image.png?v=1" />
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "Yapoleon's Court",
+      "url": "https://yapoleonscourt.com/",
+      "description": "A daily AI game where you win the favor of Yapoleon — a haughty, impossible-to-please emperor — by charming him with a single free-text reply to his daily demand.",
+      "applicationCategory": "GameApplication",
+      "operatingSystem": "Any",
+      "browserRequirements": "Requires JavaScript",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "image": "https://yapoleonscourt.com/og-image.png?v=1",
+      "author": {
+        "@type": "Organization",
+        "name": "MidnightDev",
+        "url": "https://midnightdev.dev"
+      }
+    }
+    </script>
+
+    <!-- GA4 — measurement ID from VITE_GA_MEASUREMENT_ID env var -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=%VITE_GA_MEASUREMENT_ID%"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', '%VITE_GA_MEASUREMENT_ID%');
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
