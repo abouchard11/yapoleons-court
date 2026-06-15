@@ -33,7 +33,7 @@ import {
   recordYapoleonEvent,
 } from './_yapoleon-observability.js';
 import { originAllowed, setCorsHeaders } from './_cors.js';
-import { isIpFloodLimited, isUserRateLimited } from './_ratelimit.js';
+import { getClientIp, isIpFloodLimited, isUserRateLimited } from './_ratelimit.js';
 import { buildYapoleonPrompt } from './_yapoleon.js';
 
 // Model chain forked verbatim — Flash primary, Flash fallback. Current as of the
@@ -129,13 +129,6 @@ async function sendAlert(subject, text, kind = 'outage') {
     u.searchParams.set('text', text);
     await fetch(u.toString(), { method: 'GET' });
   } catch { /* alerting must NEVER break the user's request */ }
-}
-
-function getClientIp(req) {
-  return req.headers['x-forwarded-for']?.split(',')[0]?.trim()
-    || req.headers['x-real-ip']
-    || req.socket?.remoteAddress
-    || 'unknown';
 }
 
 function extractBearerToken(req) {

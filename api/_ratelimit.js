@@ -115,3 +115,24 @@ export function isIpFloodLimited(ip) {
   if (!ip) return false;
   return ipFloodMinuteLimiter(ip) || ipFloodHourlyLimiter(ip);
 }
+
+/**
+ * Resolve the client IP for rate limiting. On Vercel the trustworthy client IP is
+ * `x-vercel-forwarded-for` (set by Vercel's edge; NOT client-spoofable), then `x-real-ip`.
+ * The LEFTMOST `x-forwarded-for` value is attacker-controllable, so it is only a
+ * last-resort fallback (a spoofed XFF must not let an attacker dodge the per-IP bound).
+ * @param {{ headers?: Record<string, unknown>, socket?: { remoteAddress?: string } }} req
+ * @returns {string}
+ */
+export function getClientIp(req) {
+  const h = req?.headers || {};
+  const first = (v) => (Array.isArray(v) ? v[0] : v);
+  const pick = (v) => (typeof first(v) === 'string' ? first(v).split(',')[0].trim() : '');
+  return (
+    pick(h['x-vercel-forwarded-for'])
+    || pick(h['x-real-ip'])
+    || pick(h['x-forwarded-for'])
+    || req?.socket?.remoteAddress
+    || 'unknown'
+  );
+}

@@ -9,6 +9,7 @@
 import crypto from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import { originAllowed, setCorsHeaders } from './_cors.js';
+import { getClientIp, isIpFloodLimited } from './_ratelimit.js';
 
 // Module-scoped lazy singleton: Vercel Fluid Compute reuses warm instances, so a
 // module-scoped supabase-js client is reused across invocations. supabase-js speaks
@@ -39,6 +40,14 @@ export default async function handler(req, res) {
     return;
   }
   setCorsHeaders(req, res);
+
+  // Per-IP flood bound on the unauthenticated mint — without this, anonymous identity
+  // minting is unbounded and an attacker can spam court_players rows (DB bloat /
+  // denial-of-wallet). Mirrors the bound api/court-judge.js applies (T-01-06).
+  if (isIpFloodLimited(getClientIp(req))) {
+    res.status(429).json({ error: 'Too many requests. Try again in a minute.' });
+    return;
+  }
 
   if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
     res.status(500).json({ error: 'Server is missing Supabase credentials' });
