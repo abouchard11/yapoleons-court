@@ -30,6 +30,33 @@ export interface RoundState {
   status: 'playing' | 'won' | 'lost';
 }
 
+// The court_rounds row shape returned by /api/court-can-play (existingRound).
+// Only the fields the client needs to reconstruct a finished, read-only state.
+export interface ServerRoundRow {
+  player_id?: string;
+  day: number;
+  rubric_version?: string;
+  outcome: 'in_progress' | 'won' | 'lost';
+  turns_used: number;
+  final_favor: number;
+}
+
+// The result of /api/court-can-play: the server's verdict on replay eligibility.
+//   allowed:false + a terminal existingRound  → render the completed round read-only.
+//   allowed:true                              → the player may play (restore cache or fresh).
+export interface CanPlayResult {
+  allowed: boolean;
+  existingRound: ServerRoundRow | null;
+}
+
+// What the client reports to /api/court-record-round after each applied turn.
+export interface RoundReport {
+  rubric_version: string;
+  turns_used: number;
+  final_favor: number;
+  outcome: 'in_progress' | 'won' | 'lost';
+}
+
 // A brand-new round for the given day.
 export const freshRound = (day: number): RoundState => ({
   day,
@@ -61,6 +88,56 @@ export const isFinished = (s: RoundState): boolean => s.status !== 'playing';
 export const turnsRemaining = (s: RoundState): number => Math.max(0, MAX_TURNS - s.turns.length);
 
 export const ROUND_LIMITS = { MAX_TURNS, WIN_FAVOR, FLOOR_FAVOR } as const;
+
+// What the client reports to the server after a turn — derived purely from the
+// (server-delta-driven) client state, so the report and the rendered meter agree.
+// outcome maps the client status union onto the court_rounds CHECK constraint
+// ('in_progress' | 'won' | 'lost').
+export const reportPayload = (s: RoundState, rubricVersion: string): RoundReport => ({
+  rubric_version: rubricVersion,
+  turns_used: s.turns.length,
+  final_favor: s.favor,
+  outcome: s.status === 'playing' ? 'in_progress' : s.status,
+});
+
+// ── Server-authoritative replay-aware load (LOOP-05 / D-04) ──────────────────
+//
+// roundFromServer: reconstruct a FINISHED, read-only RoundState from a court_rounds
+// row. A terminal row (won/lost) is the replay lock made visible — the player sees
+// their completed round, not a fresh one, EVEN after clearing local storage (the
+// server row keyed by UNIQUE(player_id, day) is authoritative). Returns null for an
+// in_progress row or no row (those are not terminal/read-only states).
+//
+// The reconstructed turns array is length-only (we do not persist the per-turn
+// reply/reaction on the server in P1 — only turns_used/final_favor/outcome), filled
+// with placeholder turns so turns.length === turns_used. The EndState reads
+// status + favor + turns.length; the per-turn reaction history is not needed once
+// the round is closed (the share/dismissal card is Phase 2).
+export const roundFromServer = (day: number, row: ServerRoundRow | null): RoundState | null => {
+  if (!row || (row.outcome !== 'won' && row.outcome !== 'lost')) return null;
+  const favor = Math.max(FLOOR_FAVOR, Math.min(WIN_FAVOR, Math.round(Number(row.final_favor) || 0)));
+  const count = Math.max(0, Math.min(MAX_TURNS, Math.round(Number(row.turns_used) || 0)));
+  const turns: RoundTurn[] = Array.from({ length: count }, () => ({
+    reply: '',
+    result: { axisScores: { wit: 0, specificity: 0, audacity: 0, economy: 0, flattery: 0 }, favorDelta: 0, dominantAxis: 'wit', reaction: '' },
+  }));
+  return { day, turns, favor, status: row.outcome };
+};
+
+// resolveLoadedRound: the single source of truth for "what round do we render on
+// mount?" — the SERVER decides eligibility (LOOP-05). Precedence:
+//   1. A terminal server round (allowed:false + won/lost row) → read-only completed.
+//      This overrides ANY local cache (a cleared OR an in-progress local cache
+//      cannot unlock a replay — the headline P1 attack T-01-18).
+//   2. Otherwise, the local instant-restore cache for the day (resume in-progress).
+//   3. Otherwise, a fresh round.
+export const resolveLoadedRound = (day: number, canPlay: CanPlayResult): RoundState => {
+  const serverFinished = roundFromServer(day, canPlay.existingRound);
+  if (serverFinished) return serverFinished;       // server wins — replay blocked
+  const cached = loadRound(day);
+  if (cached) return cached;                        // resume the in-progress cache
+  return freshRound(day);                           // fresh
+};
 
 // ── Persistence (instant-restore cache; the server is authoritative for replay) ──
 
