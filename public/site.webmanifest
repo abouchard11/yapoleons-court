@@ -1,0 +1,14 @@
+{
+  "name": "Yapoleon's Court",
+  "short_name": "Yapoleon's Court",
+  "description": "The daily game where you charm a haughty AI emperor into favor.",
+  "lang": "en",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FBF6EC",
+  "theme_color": "#FBF6EC",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

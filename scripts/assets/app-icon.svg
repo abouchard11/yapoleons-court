@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Yapoleon's Court">
+  <!-- Full-bleed app icon (maskable + apple-touch source). No rounded corners /
+       no transparency: iOS and Android apply their own mask. Crown + favor meter
+       kept inside the centre ~60% maskable safe zone. -->
+  <rect width="1024" height="1024" fill="#1B2A4A"/>
+  <g transform="translate(277,300) scale(4.70)">
+    <path d="M6 72 L6 52 L18 10 L34 44 L50 2 L66 44 L82 10 L94 52 L94 72 Z" fill="#E8B84B"/>
+    <circle cx="18" cy="10" r="6" fill="#E8B84B"/>
+    <circle cx="50" cy="3" r="7" fill="#E8B84B"/>
+    <circle cx="82" cy="10" r="6" fill="#E8B84B"/>
+    <circle cx="50" cy="60" r="6" fill="#C8302A"/>
+  </g>
+  <rect x="277" y="700" width="470" height="34" rx="17" fill="#E8B84B"/>
+</svg>

@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Privacy Policy — Yapoleon's Court</title>
+  <style>
+    @font-face {
+      font-family: 'Bricolage Grotesque';
+      src: url('/fonts/BricolageGrotesque-Bold.woff2') format('woff2');
+      font-weight: 700; font-display: swap;
+    }
+    @font-face {
+      font-family: 'Inter';
+      src: url('/fonts/Inter-Latin.woff2') format('woff2');
+      font-weight: 400 700; font-display: swap;
+    }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      max-width: 680px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+      color: #1B2A4A;
+      background: #FBF6EC;
+      background-image: radial-gradient(rgba(31, 28, 22, 0.06) 1.4px, transparent 1.4px);
+      background-size: 22px 22px;
+      line-height: 1.7;
+    }
+    h1 { font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 700; font-size: 1.9rem; margin-bottom: 0.25rem; }
+    h2 { font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 700; font-size: 1.2rem; margin-top: 2rem; border-bottom: 2px solid #E8B84B; padding-bottom: 0.25rem; }
+    p, li { font-size: 0.95rem; }
+    a { color: #C8902B; }
+    .updated { font-size: 0.85rem; color: #6b6256; }
+    .nav { font-size: 0.85rem; margin-bottom: 1rem; }
+  </style>
+</head>
+<!--
+  OPERATOR / ENTITY: "MidnightDev" is the current trade name of the individual operator
+  (sibling of yapword.com — see yapword's privacy page, the franchise source of truth).
+  Once the LLC is formed, replace "MidnightDev" with "MidnightDev LLC" throughout.
+  CONFIRM BEFORE PUBLIC LAUNCH: (1) the contact mailbox below is live (problem@yapoleon.com),
+  (2) the postal address is current, (3) counsel has reviewed the Children's Privacy stance —
+  the game is anonymous / no-PII by construction (COPPA-safe), but GA4 + PostHog set device
+  identifiers, so confirm the analytics posture against the target 9+/12+ App Store rating.
+-->
+<body>
+  <h1>Privacy Policy</h1>
+  <p class="updated">Last updated: June 15, 2026</p>
+  <p class="nav"><a href="/">← Back to Yapoleon's Court</a> · <a href="/terms">Terms of Service</a></p>
+
+  <p>Yapoleon's Court is a daily game operated by MidnightDev ("we", "us"). You charm Yapoleon — a haughty AI emperor — with a short free-text reply to his daily demand, and an AI judges your wit. This policy explains what information we handle, why, and the choices you have. <strong>You play anonymously: there is no account, no sign-up, and we do not ask for your name, email, or any personal details.</strong></p>
+
+  <h2>Information We Collect</h2>
+  <ul>
+    <li><strong>Gameplay data (on your device):</strong> your daily round progress, turns used, favor score, outcome, standing/streak, appearance preference, and onboarding state are stored locally in your browser or iOS app storage. We do not receive this local data.</li>
+    <li><strong>Anonymous play token:</strong> on first launch we mint a random, opaque identifier (a UUID) and store it on your device and in our database so your daily round and standing persist across sessions. This token carries <strong>no personal information</strong> — it is not linked to your name, email, or contact details, because we never collect those.</li>
+    <li><strong>Round results (in our database):</strong> for each daily round we store your anonymous token, the day, the day's rubric version, how many turns you used, your final favor score, and the outcome (won or lost). We do <strong>not</strong> store the text of your replies and we store no personal information.</li>
+    <li><strong>AI request context:</strong> the free-text reply you send is transmitted through our server to our AI provider (Google Gemini) to be scored and to generate Yapoleon's in-character reaction. We do not attach your token, name, or any identifier to the AI prompt, and we do not save your reply text in our database after the round is scored.</li>
+    <li><strong>Analytics:</strong> aggregate, non-identifying usage events — such as a round starting or completing — measured with Google Analytics 4 and PostHog (see Cookies &amp; Analytics below).</li>
+    <li><strong>Technical data:</strong> our hosting, API, analytics, and security systems process standard technical data such as IP address, device/browser details, request timing, and error logs. We use your IP address transiently to rate-limit abuse of the AI; we do not store it as part of your gameplay record.</li>
+  </ul>
+
+  <h2>How We Use Information</h2>
+  <ul>
+    <li>Run the daily game and preserve your round progress and standing.</li>
+    <li>Generate Yapoleon's AI-powered scoring and in-character reactions.</li>
+    <li>Measure aggregate usage and reliability to improve the game.</li>
+    <li>Protect the service from abuse, outages, and excessive AI usage.</li>
+  </ul>
+
+  <h2>Cookies &amp; Analytics</h2>
+  <p>We use Google Analytics 4 and PostHog to understand aggregate usage. These tools set cookies and similar identifiers (for example, a randomly generated client ID) on your device to measure sessions and events. We do not use advertising cookies, we do not run behavioral advertising, and we do not sell or share your data. Because play is anonymous, these analytics events are not tied to any personal identity. Where required by law, we will ask for your consent before setting non-essential analytics cookies.</p>
+
+  <h2>AI Features</h2>
+  <p>Yapoleon's Court uses Google Gemini to power the game: it scores your reply against the day's hidden rubric and writes Yapoleon's reaction. Prompts contain only gameplay context — the day's demand and your reply — never your personal information (we hold none). See <a href="https://policies.google.com/privacy">Google's Privacy Policy</a> for how Google processes this data.</p>
+
+  <h2>Third-Party Services</h2>
+  <p>We share data only with service providers that help us run Yapoleon's Court, and only as needed to provide their service:</p>
+  <ul>
+    <li><strong>Vercel</strong> — hosting and serverless APIs. See <a href="https://vercel.com/legal/privacy-policy">Vercel's Privacy Policy</a>.</li>
+    <li><strong>Google</strong> — Gemini (AI judging and reactions) and Google Analytics 4 (web analytics).</li>
+    <li><strong>Supabase</strong> — database storage for the anonymous play token and round results. See <a href="https://supabase.com/privacy">Supabase's Privacy Policy</a>.</li>
+    <li><strong>PostHog</strong> — product analytics (anonymous session and gameplay events). See <a href="https://posthog.com/privacy">PostHog's Privacy Policy</a>.</li>
+  </ul>
+
+  <h2>International Transfers</h2>
+  <p>Our providers are based in the United States and may process data there. Where you access Yapoleon's Court from outside the U.S., the limited technical and analytics data described above may be transferred to and processed in the United States.</p>
+
+  <h2>Data Retention</h2>
+  <p>Local gameplay data stays on your device until you clear it (for example, by clearing your browser storage or deleting the app). Your anonymous token and round results are retained so your standing persists; because they contain no personal information, they cannot be used to identify you. You can sever the link to your saved standing at any time by clearing local app data, which detaches your device from the anonymous token.</p>
+
+  <h2>Your Rights &amp; Choices</h2>
+  <p>Yapoleon's Court is anonymous by design — we hold no personal information tied to you, so there is nothing personal to access, correct, or export. You can still:</p>
+  <ul>
+    <li>Play without ever providing personal information.</li>
+    <li>Clear your local app/browser data to remove on-device gameplay state and detach your anonymous token.</li>
+    <li>Opt out of non-essential analytics cookies where your local law requires a consent prompt.</li>
+  </ul>
+  <p>Depending on where you live (for example, the EU/UK under GDPR, or California under CCPA/CPRA), you may have rights over personal data. We do not sell or share personal information, and we do not collect personal information through Yapoleon's Court. If you have any privacy question or request, email <a href="mailto:problem@yapoleon.com">problem@yapoleon.com</a>.</p>
+
+  <h2>Push Notifications</h2>
+  <p>The app may ask permission to send local reminders about the daily demand. These are scheduled on your device and involve no server communication. You can decline, or disable them in the app or in iOS Settings at any time.</p>
+
+  <h2>Children's Privacy</h2>
+  <p>Yapoleon's Court is suitable for a general audience and is designed to be played anonymously, with no account and no collection of personal information from anyone — including children. We do not knowingly collect personal information from children. The aggregate analytics described above use device identifiers for measurement only; they are not used for advertising or to build a profile of any individual. If you believe a child has provided us personal information, contact us and we will address it.</p>
+
+  <h2>Changes</h2>
+  <p>We may update this policy. Material changes will be posted here with a new "last updated" date.</p>
+
+  <h2>Contact</h2>
+  <p>Questions or requests: <a href="mailto:problem@yapoleon.com">problem@yapoleon.com</a>.</p>
+  <p>MidnightDev · 2805 Hicks Street, Houston, TX 77007</p>
+</body>
+</html>
