@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2732 2732" role="img" aria-label="Yapoleon's Court">
+  <!-- iOS launch / splash — LIGHT. Background matches capacitor.config.ts SplashScreen +
+       the LaunchBackground asset-catalog "Any" color (#FBF6EC). Logo centered, well inside
+       the safe ~1/3 so it survives portrait/landscape crop. Flat bg (Apple-clean). -->
+  <rect width="2732" height="2732" fill="#FBF6EC"/>
+  <g transform="translate(986,986) scale(5.9375)">
+    <rect width="128" height="128" rx="24" fill="#1B2A4A"/>
+    <g transform="translate(20,22) scale(0.88)">
+      <path d="M6 72 L6 52 L18 10 L34 44 L50 2 L66 44 L82 10 L94 52 L94 72 Z" fill="#E8B84B"/>
+      <circle cx="18" cy="10" r="6" fill="#E8B84B"/>
+      <circle cx="50" cy="3" r="7" fill="#E8B84B"/>
+      <circle cx="82" cy="10" r="6" fill="#E8B84B"/>
+      <circle cx="50" cy="60" r="6" fill="#C8302A"/>
+    </g>
+    <rect x="28" y="96" width="72" height="9" rx="4.5" fill="#E8B84B"/>
+  </g>
+</svg>
