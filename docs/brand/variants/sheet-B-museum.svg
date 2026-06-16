@@ -1,0 +1,170 @@
+<svg viewBox="0 0 1600 2000" xmlns="http://www.w3.org/2000/svg" font-family="Helvetica Neue, Helvetica, Arial, sans-serif">
+  <defs>
+    <!-- Gold-dot parchment texture on navy: ~6.5% opacity gold dots on a 22px grid -->
+    <pattern id="goldDots" width="22" height="22" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#E8B84B" fill-opacity="0.065"/>
+    </pattern>
+    <!-- Subtle ink-dot texture for the cream specimen panel -->
+    <pattern id="inkDots" width="22" height="22" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#1A1714" fill-opacity="0.06"/>
+    </pattern>
+    <linearGradient id="meterFill" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#C8902B"/>
+      <stop offset="0.5" stop-color="#E8B84B"/>
+      <stop offset="1" stop-color="#F2D07E"/>
+    </linearGradient>
+    <clipPath id="meterClip">
+      <rect x="140" y="1452" width="1320" height="64" rx="32"/>
+    </clipPath>
+  </defs>
+
+  <!-- ===== FIELD ===== -->
+  <rect width="1600" height="2000" fill="#1B2A4A"/>
+  <rect width="1600" height="2000" fill="url(#goldDots)"/>
+
+  <!-- ===== MODULAR GRID (faint structural rules) ===== -->
+  <g stroke="#E8B84B" stroke-opacity="0.10" stroke-width="1">
+    <!-- vertical columns at 80 / 533.33 / 986.66 / outer margins -->
+    <line x1="140" y1="140" x2="140" y2="1860"/>
+    <line x1="1460" y1="140" x2="1460" y2="1860"/>
+    <line x1="580" y1="140" x2="580" y2="1860"/>
+    <line x1="1020" y1="140" x2="1020" y2="1860"/>
+    <!-- horizontal baselines -->
+    <line x1="140" y1="140" x2="1460" y2="140"/>
+    <line x1="140" y1="412" x2="1460" y2="412"/>
+    <line x1="140" y1="1860" x2="1460" y2="1860"/>
+  </g>
+
+  <!-- corner registration ticks -->
+  <g stroke="#E8B84B" stroke-opacity="0.55" stroke-width="2">
+    <path d="M140 122 L140 158 M122 140 L158 140" fill="none"/>
+    <path d="M1460 122 L1460 158 M1442 140 L1478 140" fill="none"/>
+    <path d="M140 1842 L140 1878 M122 1860 L158 1860" fill="none"/>
+    <path d="M1460 1842 L1460 1878 M1442 1860 L1478 1860" fill="none"/>
+  </g>
+
+  <!-- ===== TOP META ROW ===== -->
+  <text x="140" y="120" fill="#FBF6EC" font-size="20" font-weight="700" letter-spacing="7">PLATE 01 — IDENTITY SYSTEM</text>
+  <text x="1460" y="120" fill="#E8B84B" font-size="20" font-weight="700" letter-spacing="7" text-anchor="end">MARK / 1.0</text>
+
+  <!-- ===== HEADER: MARK + TITLE ===== -->
+  <!-- Locked crown mark, top-left, scaled up. Local crown box ~100x72 -> scaled x2.7 -->
+  <g transform="translate(140,190) scale(2.7)">
+    <path d="M6 72 L6 52 L18 10 L34 44 L50 2 L66 44 L82 10 L94 52 L94 72 Z" fill="#E8B84B"/>
+    <circle cx="18" cy="10" r="6" fill="#E8B84B"/>
+    <circle cx="50" cy="3" r="7" fill="#E8B84B"/>
+    <circle cx="82" cy="10" r="6" fill="#E8B84B"/>
+    <circle cx="50" cy="60" r="6" fill="#C8302A"/>
+  </g>
+
+  <!-- Title block, right of mark -->
+  <text x="585" y="250" fill="#FBF6EC" font-size="74" font-weight="700" letter-spacing="-1">YAPOLEON'S</text>
+  <text x="585" y="338" fill="#E8B84B" font-size="74" font-weight="700" letter-spacing="-1">COURT</text>
+  <text x="585" y="392" fill="#FBF6EC" fill-opacity="0.62" font-size="22" font-weight="500" letter-spacing="4">CHARM THE AI EMPEROR.</text>
+
+  <!-- divider under header -->
+  <line x1="140" y1="470" x2="1460" y2="470" stroke="#E8B84B" stroke-opacity="0.30" stroke-width="1.5"/>
+
+  <!-- ===== SECTION A — PALETTE ===== -->
+  <text x="140" y="556" fill="#E8B84B" font-size="20" font-weight="700" letter-spacing="6">A · COLOR</text>
+  <text x="1460" y="556" fill="#FBF6EC" fill-opacity="0.5" font-size="18" font-weight="500" letter-spacing="3" text-anchor="end">5 — CORE</text>
+
+  <!-- Swatch row: 5 swatches across the grid (140..1460 = 1320 wide). gap 28, 5 cols -->
+  <!-- col width = (1320 - 4*28)/5 = 241.6 -->
+  <g>
+    <!-- NAVY -->
+    <rect x="140" y="586" width="241.6" height="240" rx="6" fill="#1B2A4A" stroke="#E8B84B" stroke-opacity="0.45" stroke-width="1.5"/>
+    <text x="160" y="868" fill="#FBF6EC" font-size="22" font-weight="700" letter-spacing="2">NAVY</text>
+    <text x="160" y="896" fill="#FBF6EC" fill-opacity="0.6" font-size="18" font-weight="500" letter-spacing="1">#1B2A4A</text>
+    <text x="160" y="616" fill="#FBF6EC" fill-opacity="0.5" font-size="15" font-weight="600" letter-spacing="2">01</text>
+    <!-- GOLD -->
+    <rect x="409.6" y="586" width="241.6" height="240" rx="6" fill="#E8B84B"/>
+    <text x="429.6" y="868" fill="#FBF6EC" font-size="22" font-weight="700" letter-spacing="2">GOLD</text>
+    <text x="429.6" y="896" fill="#FBF6EC" fill-opacity="0.6" font-size="18" font-weight="500" letter-spacing="1">#E8B84B</text>
+    <text x="429.6" y="616" fill="#1A1714" fill-opacity="0.55" font-size="15" font-weight="600" letter-spacing="2">02</text>
+    <!-- CRIMSON -->
+    <rect x="679.2" y="586" width="241.6" height="240" rx="6" fill="#C8302A"/>
+    <text x="699.2" y="868" fill="#FBF6EC" font-size="22" font-weight="700" letter-spacing="2">CRIMSON</text>
+    <text x="699.2" y="896" fill="#FBF6EC" fill-opacity="0.7" font-size="18" font-weight="500" letter-spacing="1">#C8302A</text>
+    <text x="699.2" y="616" fill="#FBF6EC" fill-opacity="0.6" font-size="15" font-weight="600" letter-spacing="2">03</text>
+    <!-- CREAM -->
+    <rect x="948.8" y="586" width="241.6" height="240" rx="6" fill="#FBF6EC"/>
+    <text x="968.8" y="868" fill="#FBF6EC" font-size="22" font-weight="700" letter-spacing="2">CREAM</text>
+    <text x="968.8" y="896" fill="#FBF6EC" fill-opacity="0.6" font-size="18" font-weight="500" letter-spacing="1">#FBF6EC</text>
+    <text x="968.8" y="616" fill="#1A1714" fill-opacity="0.45" font-size="15" font-weight="600" letter-spacing="2">04</text>
+    <!-- INK -->
+    <rect x="1218.4" y="586" width="241.6" height="240" rx="6" fill="#1A1714" stroke="#E8B84B" stroke-opacity="0.45" stroke-width="1.5"/>
+    <text x="1238.4" y="868" fill="#FBF6EC" font-size="22" font-weight="700" letter-spacing="2">INK</text>
+    <text x="1238.4" y="896" fill="#FBF6EC" fill-opacity="0.6" font-size="18" font-weight="500" letter-spacing="1">#1A1714</text>
+    <text x="1238.4" y="616" fill="#FBF6EC" fill-opacity="0.5" font-size="15" font-weight="600" letter-spacing="2">05</text>
+  </g>
+
+  <!-- supporting tints strip -->
+  <g>
+    <rect x="140" y="916" width="60" height="36" fill="#C8902B"/>
+    <rect x="208" y="916" width="60" height="36" fill="#F2D07E"/>
+    <rect x="276" y="916" width="60" height="36" fill="#24365A"/>
+    <text x="356" y="941" fill="#FBF6EC" fill-opacity="0.55" font-size="16" font-weight="500" letter-spacing="2">SUPPORTING · #C8902B  #F2D07E  #24365A</text>
+  </g>
+
+  <!-- divider -->
+  <line x1="140" y1="998" x2="1460" y2="998" stroke="#E8B84B" stroke-opacity="0.22" stroke-width="1.5"/>
+
+  <!-- ===== SECTION B — TYPE SPECIMEN ===== -->
+  <text x="140" y="1072" fill="#E8B84B" font-size="20" font-weight="700" letter-spacing="6">B · TYPE</text>
+  <text x="1460" y="1072" fill="#FBF6EC" fill-opacity="0.5" font-size="18" font-weight="500" letter-spacing="3" text-anchor="end">DISPLAY / BODY</text>
+
+  <!-- cream specimen panel -->
+  <rect x="140" y="1100" width="1320" height="248" rx="8" fill="#FBF6EC"/>
+  <rect x="140" y="1100" width="1320" height="248" rx="8" fill="url(#inkDots)"/>
+  <!-- display specimen -->
+  <text x="180" y="1196" fill="#1A1714" font-size="86" font-weight="700" letter-spacing="-1">Aa Bricolage</text>
+  <text x="180" y="1238" fill="#1A1714" fill-opacity="0.55" font-size="19" font-weight="600" letter-spacing="3">DISPLAY — BRICOLAGE GROTESQUE BOLD</text>
+  <!-- body specimen -->
+  <text x="180" y="1296" fill="#1A1714" font-size="30" font-weight="400">The favor of an emperor, earned in three lines.</text>
+  <text x="180" y="1330" fill="#1A1714" fill-opacity="0.55" font-size="17" font-weight="600" letter-spacing="3">BODY — INTER · REGULAR / MEDIUM / SEMIBOLD</text>
+  <!-- glyph scale ticks on right of panel -->
+  <g fill="#1A1714" fill-opacity="0.5" font-weight="600" letter-spacing="1">
+    <text x="1420" y="1150" font-size="15" text-anchor="end">AG</text>
+  </g>
+
+  <!-- divider -->
+  <line x1="140" y1="1396" x2="1460" y2="1396" stroke="#E8B84B" stroke-opacity="0.22" stroke-width="1.5"/>
+
+  <!-- ===== SECTION C — FAVOR METER (HERO) ===== -->
+  <text x="140" y="1438" fill="#E8B84B" font-size="20" font-weight="700" letter-spacing="6">C · FAVOR METER</text>
+  <text x="1460" y="1438" fill="#FBF6EC" fill-opacity="0.5" font-size="18" font-weight="500" letter-spacing="3" text-anchor="end">CORE MECHANIC · 0–100</text>
+
+  <!-- meter track -->
+  <rect x="140" y="1452" width="1320" height="64" rx="32" fill="#24365A" stroke="#E8B84B" stroke-opacity="0.35" stroke-width="1.5"/>
+  <!-- meter fill at 78% of 1320 = 1029.6 -->
+  <g clip-path="url(#meterClip)">
+    <rect x="140" y="1452" width="1029.6" height="64" fill="url(#meterFill)"/>
+    <!-- crimson gem marker at the fill edge -->
+    <circle cx="1169.6" cy="1484" r="13" fill="#C8302A" stroke="#FBF6EC" stroke-width="2"/>
+  </g>
+  <!-- scale ticks under the meter: 0 25 50 75 100 -->
+  <g stroke="#E8B84B" stroke-opacity="0.4" stroke-width="1.5">
+    <line x1="140" y1="1530" x2="140" y2="1544"/>
+    <line x1="470" y1="1530" x2="470" y2="1544"/>
+    <line x1="800" y1="1530" x2="800" y2="1544"/>
+    <line x1="1130" y1="1530" x2="1130" y2="1544"/>
+    <line x1="1460" y1="1530" x2="1460" y2="1544"/>
+  </g>
+  <g fill="#FBF6EC" fill-opacity="0.55" font-size="16" font-weight="600" letter-spacing="1">
+    <text x="140" y="1572">0</text>
+    <text x="470" y="1572" text-anchor="middle">25</text>
+    <text x="800" y="1572" text-anchor="middle">50</text>
+    <text x="1130" y="1572" text-anchor="middle">75</text>
+    <text x="1460" y="1572" text-anchor="end">100</text>
+  </g>
+  <!-- big readout -->
+  <text x="140" y="1700" fill="#E8B84B" font-size="120" font-weight="700" letter-spacing="-2">78</text>
+  <text x="362" y="1668" fill="#FBF6EC" font-size="26" font-weight="700" letter-spacing="3">FAVOR</text>
+  <text x="362" y="1704" fill="#FBF6EC" fill-opacity="0.6" font-size="20" font-weight="500" letter-spacing="2">His taste is the scoring function.</text>
+
+  <!-- ===== FOOTER ===== -->
+  <line x1="140" y1="1760" x2="1460" y2="1760" stroke="#E8B84B" stroke-opacity="0.30" stroke-width="1.5"/>
+  <text x="140" y="1814" fill="#FBF6EC" fill-opacity="0.6" font-size="20" font-weight="500" letter-spacing="3">WIN HIS FAVOR IN THREE LINES.</text>
+  <text x="1460" y="1814" fill="#E8B84B" font-size="20" font-weight="700" letter-spacing="3" text-anchor="end">COURT.YAPOLEON.COM</text>
+</svg>
