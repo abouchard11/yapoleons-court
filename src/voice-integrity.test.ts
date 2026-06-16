@@ -231,6 +231,90 @@ describe('voice integrity: judging hardens flattery and insolence (JUDGE-04/06)'
   });
 });
 
+describe('voice integrity: within-round freshness (VOICE-03)', () => {
+  // VOICE-03 build gate (Pattern 4 layer-a, deterministic — NO live model call):
+  // when Yapoleon's OWN prior in-round reactions are supplied, the judging prompt
+  // must forbid reusing the same opening framing / sentence-shape across the round
+  // AND hold a favor gain and a favor loss to the same specific-or-silent bar.
+  // The directive is prompt context inside the ONE judge call (must-nail #3) — no
+  // second model call. NOTE: the safe-savagery output bound is a HARD gate that is
+  // explicitly DEFERRED to Phase 4 (SAFE-01) — it is NOT pinned in this block.
+  const PRIOR_LINE = 'Ah, the marble finally found something worth holding still for.';
+
+  const judgingWithPrior = () =>
+    buildYapoleonPrompt({
+      state: 'judging',
+      scene: 'Justify the statue I have not yet commissioned of myself.',
+      reply: 'A second swing — this time the plinth does the bragging for you.',
+      dominantAxis: 'wit',
+      priorLines: [PRIOR_LINE],
+    });
+
+  const judgingTurnOne = () =>
+    buildYapoleonPrompt({
+      state: 'judging',
+      scene: 'Justify the statue I have not yet commissioned of myself.',
+      reply: 'A statue would only diminish you, Sire — marble cannot smirk.',
+      dominantAxis: 'wit',
+      // no priorLines: turn 1 has nothing to be fresh against
+    });
+
+  it('PRESENCE: when priorLines are supplied, the contents carry the freshness directive', () => {
+    const c = judgingWithPrior();
+    // Pin the directive by a stable substring (forbids reusing opening framing / shape).
+    expect(c.contents).toContain('Within-round freshness');
+    expect(c.contents).toContain('same leading-clause shape');
+    expect(c.contents).toContain('vary the sentence shape');
+    // The supplied prior line appears as a thing to avoid echoing.
+    expect(c.contents).toContain(PRIOR_LINE);
+  });
+
+  it('ABSENCE (turn-1 carve-out): when priorLines are omitted, the directive is NOT present', () => {
+    const c = judgingTurnOne();
+    expect(c.contents).not.toContain('Within-round freshness');
+    expect(c.contents).not.toContain(PRIOR_LINE);
+  });
+
+  it('an empty priorLines array is treated as turn 1 (no directive)', () => {
+    const c = buildYapoleonPrompt({
+      state: 'judging',
+      scene: 'Justify the statue.',
+      reply: 'x',
+      priorLines: [],
+    });
+    expect(c.contents).not.toContain('Within-round freshness');
+  });
+
+  it('SAME BAR: a favor gain and a favor loss are held to the same specific-or-silent bar', () => {
+    const c = judgingWithPrior();
+    // No praise-template vs insult-template split — both win and loss observe THIS
+    // reply's specific words (the same bar the system prompt already sets).
+    expect(c.contents).toContain('held to the SAME specific-or-silent bar');
+    expect(c.contents).toContain('never a generic praise template for a win or a generic insult template for a loss');
+  });
+
+  it('the freshness directive does NOT mutate the Tier-1 baseline system prompt', () => {
+    expect(judgingWithPrior().systemInstruction).toBe(YAPOLEON_SYSTEM_PROMPT);
+  });
+
+  it('boundary sentinel: this block does NOT pin the Phase-4 safe-savagery HARD gate', () => {
+    // Keep the Phase-2/Phase-4 boundary honest: within-round freshness lives here;
+    // the safe-savagery OUTPUT BOUND as a HARD gate (SAFE-01) is a Phase-4 item and
+    // must not be smuggled into the freshness directive. (The dismissal POSTURE pin
+    // below is a separate, weaker check that predates this boundary.)
+    const c = judgingWithPrior();
+    expect(c.contents).not.toContain('protected traits');
+    expect(c.contents).not.toContain('SAFE-01');
+  });
+
+  it('folds into the ONE judge call: the freshness context adds no second model call', () => {
+    // must-nail #3 — priorLines is prompt text, not a second :generateContent POST.
+    // The serverless POST count is pinned in the Codex-F4 court-judge block; here we
+    // simply prove the freshness path is a low-temp judging prompt, not a new call.
+    expect(judgingWithPrior().temperature).toBe(0.2);
+  });
+});
+
 describe('voice integrity: the loss line targets the line, not the person (safe-savagery posture)', () => {
   it('dismissal is witty about the attempt and bars cruelty toward the person', () => {
     const prompt = buildYapoleonPrompt({
