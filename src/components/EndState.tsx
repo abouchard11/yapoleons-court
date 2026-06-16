@@ -76,7 +76,9 @@ export default function EndState({
 
   // CTA copy (UI-SPEC Copywriting Contract): verb + noun, in-voice. The loss is
   // content too ("entertaining failure"), so it shares the Dismissal.
-  const ctaLabel = won ? 'Share the Concession' : 'Share the Dismissal';
+  const ctaLabel = won
+    ? 'Share the Concession' // win CTA
+    : 'Share the Dismissal'; // loss CTA
   const ctaAria = won
     ? "Share Yapoleon's concession as a card"
     : "Share Yapoleon's dismissal as a card";
