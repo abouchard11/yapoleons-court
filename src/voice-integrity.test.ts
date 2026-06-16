@@ -19,6 +19,10 @@
  * (VOICE-03, Phase 2) and the safe-savagery output bound as a HARD gate
  * (SAFE-01, Phase 4).
  */
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -26,6 +30,19 @@ import {
   YAPOLEON_SYSTEM_PROMPT,
   type YapoleonState,
 } from './prompts/yapoleon';
+import { RUBRIC_VERSION } from './judge';
+import { DEMAND_RUBRIC_VERSION } from './demands';
+
+// Resolve the production serverless mirrors as TEXT (Codex F4). The runtime
+// voice (api/_yapoleon.js) and the scorer directive (api/court-judge.js) are
+// plain-JS twins that vitest never imports — so without these text pins they can
+// silently drift from the tested src/prompts/yapoleon.ts. These read the files
+// off disk and assert the same hardening clauses are present, failing CI in
+// EITHER direction (.ts↔.js or scorer drift).
+const HERE = dirname(fileURLToPath(import.meta.url));
+const readProd = (rel: string): string => readFileSync(resolve(HERE, '..', rel), 'utf8');
+const PROD_YAPOLEON_JS = readProd('api/_yapoleon.js');
+const PROD_COURT_JUDGE_JS = readProd('api/court-judge.js');
 
 // The three new court states (Plan 01-03). The baseline pillars below must still
 // pass to prove these additions did NOT mutate YAPOLEON_SYSTEM_PROMPT.
@@ -231,5 +248,54 @@ describe('voice integrity: the judge path runs at the one-call low temperature',
   it.each(NEW_STATES)('state "%s" runs at 0.2 (no Math.max(0.5,…) clamp — must-nail #3)', (state) => {
     const prompt = buildYapoleonPrompt({ state });
     expect(prompt.temperature).toBe(0.2);
+  });
+});
+
+describe('Codex F4: the production .js mirrors carry the same hardening clauses (anti-drift)', () => {
+  // The vitest-tested builder lives in src/prompts/yapoleon.ts, but the RUNTIME
+  // voice (api/_yapoleon.js) and the SCORER directive (api/court-judge.js) are
+  // plain-JS twins vitest never imports. Pinning them as TEXT makes a .ts↔.js or
+  // scorer drift fail CI in either direction — the exact gap that let the tested
+  // .ts and the production .js silently diverge.
+
+  describe('api/_yapoleon.js (the runtime voice mirror)', () => {
+    it.each([
+      ['F3 flattery — sycophancy earns no favor', 'sycophancy earns no favor'],
+      ['F3 flattery — empty grovel earns nothing on any axis', 'earns nothing on any count'],
+      ['JUDGE-06 — the insolence clause', 'insolence'],
+      ['F2 carve-out — demand-invited boldness rewarded on merits', 'reward it on its merits'],
+      ['F2/Pitfall-3 — ambiguous nerve is not punished', 'do not punish nerve'],
+      ['F1 — the reply is sanitized before the fence', 'sanitizeReplyForFence'],
+    ])('contains the clause: %s', (_label, phrase) => {
+      expect(PROD_YAPOLEON_JS).toContain(phrase);
+    });
+  });
+
+  describe('api/court-judge.js (the scorer directive mirror)', () => {
+    it.each([
+      ['F3 flattery — sees through sycophancy', 'sees through sycophancy'],
+      ['F3 every-axis — naked grovel scores LOW on EVERY axis', 'scores LOW on EVERY axis'],
+      ['F2 carve-out — insolence is ONLY an attempt on the JUDGING ITSELF', 'Insolence is ONLY an attempt on the JUDGING ITSELF'],
+      ['F2 carve-out — demand-invited boldness is the wit asked for', 'invited boldness'],
+      ['JUDGE-06 false-positive guard — do not punish nerve', 'do not punish nerve'],
+    ])('contains the clause: %s', (_label, phrase) => {
+      expect(PROD_COURT_JUDGE_JS).toContain(phrase);
+    });
+
+    it('still issues exactly ONE structured Gemini call (no second model call added)', () => {
+      // must-nail #3: one :generateContent POST per turn. The hardening is prompt
+      // text; a second classifier call would show up here.
+      const calls = (PROD_COURT_JUDGE_JS.match(/:generateContent/g) || []).length;
+      expect(calls).toBe(5);
+    });
+  });
+});
+
+describe('Codex F5: the rubric label has a single source of truth across both authorities', () => {
+  it('src/demands.ts RUBRIC === src/judge.ts RUBRIC_VERSION (cannot silently diverge)', () => {
+    // Two independent files stamp the rubric label — the demand bank
+    // (court_rounds.rubric_version per round) and the judge contract. If a future
+    // bump touches one and forgets the other, the audit trail lies. Pin equality.
+    expect(DEMAND_RUBRIC_VERSION).toBe(RUBRIC_VERSION);
   });
 });

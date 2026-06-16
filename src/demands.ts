@@ -51,6 +51,11 @@ export interface DemandRecord {
 // so the per-round audit trail records v2; the favor curve math is unchanged (CALIBRATION.md).
 const RUBRIC = 'fairfight-v2';
 
+// Exported alias for the rubric-invariant guard (Codex F5): src/judge.ts
+// RUBRIC_VERSION and this stamp are two independent authorities for the SAME
+// rubric label and must never silently diverge. The test asserts strict equality.
+export const DEMAND_RUBRIC_VERSION = RUBRIC;
+
 // ── The 30 authored demands, grouped by D-03 bucket ──
 export const DEMANDS: DemandRecord[] = [
   // ── audacity-heavy (6) — nerve over niceness; the timid reply loses ──
