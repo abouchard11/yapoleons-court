@@ -94,6 +94,21 @@ const STATE_TEMPERATURE = {
   dismissal: 0.2,
 };
 
+// ── Fence-break defense (Codex F1 — injection robustness) ──
+// The player reply is interpolated inside a triple-double-quote fence
+// (`"""${reply}"""`). A reply that itself contains `"""` could close the fence
+// early and append text the model reads as a top-level instruction. This collapses
+// any run of 3+ double-quotes (and any stray `"""`) to single quotes so the fence
+// boundary stays intact. Defense-in-depth ON TOP of the existing isolation (the
+// reply rides `contents`, never `system_instruction`); it is deliberately minimal —
+// ordinary single/double quotes and other punctuation are untouched. Kept
+// BYTE-ALIGNED with src/prompts/yapoleon.ts sanitizeReplyForFence.
+function sanitizeReplyForFence(reply) {
+  // Any run of three or more double-quotes becomes the same count of single quotes,
+  // so no `"""` fence can survive inside the judged record.
+  return reply.replace(/"{3,}/g, (m) => "'".repeat(m.length));
+}
+
 /**
  * Plain-JS twin of buildYapoleonPrompt — returns { systemInstruction, contents,
  * temperature }. systemInstruction is ALWAYS the untouched baseline. The reply
@@ -106,7 +121,7 @@ function buildYapoleonPrompt(ctx) {
 
   switch (state) {
     case 'judging': {
-      const reply = ctx.reply || '';
+      const reply = sanitizeReplyForFence(ctx.reply || '');
       instruction = [
         'State: judging. A courtier has answered your demand.',
         ctx.scene ? `Your demand (the scene): ${ctx.scene}` : '',
