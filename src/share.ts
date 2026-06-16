@@ -216,104 +216,142 @@ export async function drawVerdictCard(data: VerdictCardData): Promise<Blob> {
   x.textAlign = 'center';
   x.textBaseline = 'alphabetic';
 
-  // Section line-heights for measurement + draw (the canvas vertical rhythm —
-  // measured-section, NOT a forced 4px grid).
-  const framingLH = 50;
-  const heroLH = 58;
-  const concessionLH = 56;
-
   // ── Two-pass: measure each wrapped block, then center the stack vertically ──
   // Quotation marks frame the hero/concession lines (yapword's roast convention).
   const heroText = `“${data.heroLine}”`;
   const concessionText = data.concessionLine ? `“${data.concessionLine}”` : '';
-
-  x.font = `500 40px ${FAMILY_BODY}`;
-  const framingH = measureWrappedHeight(x, data.demandScene, WRAP_MAX_W, framingLH);
-  x.font = `700 48px ${FAMILY_DISPLAY}`;
-  const heroH = measureWrappedHeight(x, heroText, WRAP_MAX_W, heroLH);
-  let concessionH = 0;
-  if (won && concessionText) {
-    x.font = `500 44px ${FAMILY_BODY}`;
-    concessionH = measureWrappedHeight(x, concessionText, WRAP_MAX_W, concessionLH);
-  }
-
-  // Fixed-height bands for the single-line sections.
-  const wordmarkH = 96;
-  const metaH = 36;
-  const footerH = 32;
-  // Inter-section gaps (canvas px — generous breathing room, not the 4-grid).
-  const gapAfterWordmark = 64;
-  const gapAfterFraming = 56;
-  const gapAfterHero = 56;
-  const gapAfterConcession = won && concessionText ? 56 : 0;
-  const gapBeforeFooter = 56;
-
-  const contentH =
-    wordmarkH +
-    gapAfterWordmark +
-    framingH +
-    gapAfterFraming +
-    heroH +
-    gapAfterHero +
-    concessionH +
-    gapAfterConcession +
-    metaH +
-    gapBeforeFooter +
-    footerH;
-
-  // Center the content stack within the padded card box.
-  const boxTop = PAD_TOP;
-  const boxBottom = SIZE - PAD_BOTTOM;
-  const boxH = boxBottom - boxTop;
-  let y = boxTop + Math.max(0, (boxH - contentH) / 2);
-
-  // ── Wordmark "Yapoleon's Court" (Bricolage 700 96px, navy) ──
-  x.fillStyle = NAVY;
-  x.font = `700 96px ${FAMILY_DISPLAY}`;
-  y += wordmarkH; // advance to baseline
-  x.fillText("Yapoleon's Court", SIZE / 2, y);
-  y += gapAfterWordmark;
-
-  // ── Demand framing — the setup (Inter 500 40px, warm ink) ──
-  x.fillStyle = INK;
-  x.font = `500 40px ${FAMILY_BODY}`;
-  wrapText(x, data.demandScene, SIZE / 2, y + 40, WRAP_MAX_W, framingLH);
-  y += framingH + gapAfterFraming;
-
-  // ── Hero line — the largest emotional beat (Bricolage 700 48px, navy) ──
-  // WIN: the player's winning reply (brag). LOSS: the savage dismissal line.
-  x.fillStyle = NAVY;
-  x.font = `700 48px ${FAMILY_DISPLAY}`;
-  wrapText(x, heroText, SIZE / 2, y + 48, WRAP_MAX_W, heroLH);
-  y += heroH + gapAfterHero;
-
-  // ── Concession line — WIN only (Inter 500 44px, accent=gold) ──
-  if (won && concessionText) {
-    x.fillStyle = accent; // gold — the trophy beat. Never drawn on a loss card.
-    x.font = `500 44px ${FAMILY_BODY}`;
-    wrapText(x, concessionText, SIZE / 2, y + 44, WRAP_MAX_W, concessionLH);
-    y += concessionH + gapAfterConcession;
-  }
-
-  // ── Meta line (Inter 500 36px, navy) ──
-  // Win/loss is carried by TEXT here (a11y), never color alone:
-  //   WIN:  "Favor won in N · Fair Fight · 🔥 N-day streak"
-  //   LOSS: "Dismissed · Fair Fight" (+ streak if the player still holds a run)
-  x.fillStyle = NAVY;
-  x.font = `500 36px ${FAMILY_BODY}`;
   const turnWord = data.turnsUsed === 1 ? 'turn' : 'turns';
   const streakBit = data.winStreak > 0 ? ` · 🔥 ${data.winStreak}-day streak` : '';
   const metaLine = won
     ? `Favor won in ${data.turnsUsed} ${turnWord} · ⚔️ ${data.tierLabel}${streakBit}`
     : `Dismissed · ⚔️ ${data.tierLabel}${streakBit}`;
-  y += metaH; // advance to baseline
-  x.fillText(metaLine, SIZE / 2, y);
-  y += gapBeforeFooter;
 
-  // ── Footer URL (Inter 500 32px, ink) ──
+  // Center the content stack within the padded card box.
+  const boxTop = PAD_TOP;
+  const boxBottom = SIZE - PAD_BOTTOM;
+  const boxH = boxBottom - boxTop; // 920 (D-01).
+
+  // ── FIT-TO-CARD uniform downscale (never clip — keep the meta line + footer URL) ──
+  // Every type size, line-height, fixed band, inter-section gap, AND baseline-advance
+  // offset is multiplied by a single `scale`. WRAP_MAX_W stays FIXED: at a smaller font
+  // the same 880px wrap re-flows to ≤ the same line count, so the scaled stack is
+  // smaller-or-equal — re-measuring at the scaled sizes gives the true scaled contentH.
+  // base sizes (scale = 1) are the UI-SPEC values. `fz` scales any one of them.
+  const fz = (n: number, scale: number) => n * scale;
+
+  // Measure the whole stack at a given scale. The wrapped blocks (framing/hero/
+  // concession) are re-measured at the scaled font sizes against the FIXED WRAP_MAX_W.
+  // `x` is passed in (TS control-flow narrowing of the null-guard above doesn't cross
+  // the closure boundary; a typed parameter keeps it non-null without a `!` assertion).
+  function measure(scale: number, x: CanvasRenderingContext2D) {
+    // Fixed-height single-line bands.
+    const wordmarkH = fz(96, scale);
+    const metaH = fz(36, scale);
+    const footerH = fz(32, scale);
+    // Section line-heights (the canvas vertical rhythm — measured-section, not a grid).
+    const framingLH = fz(50, scale);
+    const heroLH = fz(58, scale);
+    const concessionLH = fz(56, scale);
+    // Inter-section gaps (canvas px — generous breathing room, not the 4-grid).
+    const gapAfterWordmark = fz(64, scale);
+    const gapAfterFraming = fz(56, scale);
+    const gapAfterHero = fz(56, scale);
+    const gapAfterConcession = won && concessionText ? fz(56, scale) : 0;
+    const gapBeforeFooter = fz(56, scale);
+    // Wrapped-block heights — re-measured at the SCALED font sizes (WRAP_MAX_W fixed).
+    x.font = `500 ${fz(40, scale)}px ${FAMILY_BODY}`;
+    const framingH = measureWrappedHeight(x, data.demandScene, WRAP_MAX_W, framingLH);
+    x.font = `700 ${fz(48, scale)}px ${FAMILY_DISPLAY}`;
+    const heroH = measureWrappedHeight(x, heroText, WRAP_MAX_W, heroLH);
+    let concessionH = 0;
+    if (won && concessionText) {
+      x.font = `500 ${fz(44, scale)}px ${FAMILY_BODY}`;
+      concessionH = measureWrappedHeight(x, concessionText, WRAP_MAX_W, concessionLH);
+    }
+    const contentH =
+      wordmarkH +
+      gapAfterWordmark +
+      framingH +
+      gapAfterFraming +
+      heroH +
+      gapAfterHero +
+      concessionH +
+      gapAfterConcession +
+      metaH +
+      gapBeforeFooter +
+      footerH;
+    return {
+      scale,
+      contentH,
+      wordmarkH,
+      metaH,
+      footerH,
+      framingLH,
+      heroLH,
+      concessionLH,
+      framingH,
+      heroH,
+      concessionH,
+      gapAfterWordmark,
+      gapAfterFraming,
+      gapAfterHero,
+      gapAfterConcession,
+      gapBeforeFooter,
+    };
+  }
+
+  // Measure at scale 1; if the natural stack overflows the box, re-measure at the
+  // downscale that makes it fit (smaller fonts re-wrap, so the second measure is exact).
+  let m = measure(1, x);
+  if (m.contentH > boxH) {
+    m = measure(boxH / m.contentH, x);
+  }
+
+  // Center the (now guaranteed-to-fit) stack vertically within the padded box.
+  let y = boxTop + Math.max(0, (boxH - m.contentH) / 2);
+
+  // ── Wordmark "Yapoleon's Court" (Bricolage 700, navy) ──
+  x.fillStyle = NAVY;
+  x.font = `700 ${fz(96, m.scale)}px ${FAMILY_DISPLAY}`;
+  y += m.wordmarkH; // advance to baseline
+  x.fillText("Yapoleon's Court", SIZE / 2, y);
+  y += m.gapAfterWordmark;
+
+  // ── Demand framing — the setup (Inter 500, warm ink) ──
   x.fillStyle = INK;
-  x.font = `500 32px ${FAMILY_BODY}`;
-  y += footerH;
+  x.font = `500 ${fz(40, m.scale)}px ${FAMILY_BODY}`;
+  wrapText(x, data.demandScene, SIZE / 2, y + fz(40, m.scale), WRAP_MAX_W, m.framingLH);
+  y += m.framingH + m.gapAfterFraming;
+
+  // ── Hero line — the largest emotional beat (Bricolage 700, navy) ──
+  // WIN: the player's winning reply (brag). LOSS: the savage dismissal line.
+  x.fillStyle = NAVY;
+  x.font = `700 ${fz(48, m.scale)}px ${FAMILY_DISPLAY}`;
+  wrapText(x, heroText, SIZE / 2, y + fz(48, m.scale), WRAP_MAX_W, m.heroLH);
+  y += m.heroH + m.gapAfterHero;
+
+  // ── Concession line — WIN only (Inter 500, accent=gold) ──
+  if (won && concessionText) {
+    x.fillStyle = accent; // gold — the trophy beat. Never drawn on a loss card.
+    x.font = `500 ${fz(44, m.scale)}px ${FAMILY_BODY}`;
+    wrapText(x, concessionText, SIZE / 2, y + fz(44, m.scale), WRAP_MAX_W, m.concessionLH);
+    y += m.concessionH + m.gapAfterConcession;
+  }
+
+  // ── Meta line (Inter 500, navy) ──
+  // Win/loss is carried by TEXT here (a11y), never color alone:
+  //   WIN:  "Favor won in N · Fair Fight · 🔥 N-day streak"
+  //   LOSS: "Dismissed · Fair Fight" (+ streak if the player still holds a run)
+  x.fillStyle = NAVY;
+  x.font = `500 ${fz(36, m.scale)}px ${FAMILY_BODY}`;
+  y += m.metaH; // advance to baseline
+  x.fillText(metaLine, SIZE / 2, y);
+  y += m.gapBeforeFooter;
+
+  // ── Footer URL (Inter 500, ink) ──
+  x.fillStyle = INK;
+  x.font = `500 ${fz(32, m.scale)}px ${FAMILY_BODY}`;
+  y += m.footerH;
   x.fillText('court.yapoleon.com', SIZE / 2, y);
 
   // ── Canvas → PNG Blob ──
@@ -358,7 +396,20 @@ export async function shareVerdict(
   const filename = `court-${day ?? 'verdict'}.png`;
   const file = new File([blob], filename, { type: 'image/png' });
 
+  // D-05: only the OS share sheet on a TOUCH/mobile device. `canShare({files})` is
+  // true on desktop Chrome (macOS/Windows) too, so gating on it alone wrongly opens
+  // the native share sheet there; require a touch/coarse pointer so desktop falls
+  // through to the download path. iOS / Capacitor WKWebView reports touch + coarse
+  // pointer, so the native sheet is still used on the primary target.
+  const prefersOsShare =
+    typeof navigator !== 'undefined' &&
+    (navigator.maxTouchPoints > 0 ||
+      (typeof window !== 'undefined' &&
+        typeof window.matchMedia === 'function' &&
+        window.matchMedia('(pointer: coarse)').matches));
+
   if (
+    prefersOsShare &&
     typeof navigator !== 'undefined' &&
     typeof navigator.share === 'function' &&
     typeof navigator.canShare === 'function' &&
