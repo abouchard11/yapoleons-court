@@ -45,9 +45,16 @@ export interface DemandRecord {
   tier: 'fairfight';                 // launch tier only
 }
 
-// The rubric version every Phase-1 demand is stamped with (CONT-03). Bumped to
-// fairfight-v1 by the 01-06 calibration when the favor curve was tuned (CALIBRATION.md).
-const RUBRIC = 'fairfight-v1';
+// The rubric version every demand is stamped with (CONT-03), flowing to
+// court_rounds.rubric_version per round. Bumped to fairfight-v2 (Phase 2: JUDGE-04/06
+// hardening) — the prompt-side scoring changed (flattery scores lower, injection docks),
+// so the per-round audit trail records v2; the favor curve math is unchanged (CALIBRATION.md).
+const RUBRIC = 'fairfight-v2';
+
+// Exported alias for the rubric-invariant guard (Codex F5): src/judge.ts
+// RUBRIC_VERSION and this stamp are two independent authorities for the SAME
+// rubric label and must never silently diverge. The test asserts strict equality.
+export const DEMAND_RUBRIC_VERSION = RUBRIC;
 
 // ── The 30 authored demands, grouped by D-03 bucket ──
 export const DEMANDS: DemandRecord[] = [

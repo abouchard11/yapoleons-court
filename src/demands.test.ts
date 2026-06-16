@@ -54,7 +54,7 @@ describe('the 30-demand calibration bank (D-01)', () => {
 
   it('stamps every record with rubricVersion and tier:fairfight (CONT-03)', () => {
     for (const d of DEMANDS) {
-      expect(d.rubricVersion).toBe('fairfight-v1');
+      expect(d.rubricVersion).toBe('fairfight-v2');
       expect(d.tier).toBe('fairfight');
     }
   });
