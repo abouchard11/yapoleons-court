@@ -1,0 +1,154 @@
+<svg viewBox="0 0 1600 2000" xmlns="http://www.w3.org/2000/svg" font-family="Helvetica Neue, Helvetica, Arial, sans-serif">
+  <defs>
+    <!-- 22px parchment dotted grid: ink dots ~6% on cream -->
+    <pattern id="dotsInk" width="22" height="22" patternUnits="userSpaceOnUse">
+      <circle cx="1.6" cy="1.6" r="1.6" fill="#1A1714" fill-opacity="0.06"/>
+    </pattern>
+    <!-- gold dots ~7% on navy (for the seal roundel) -->
+    <pattern id="dotsGold" width="22" height="22" patternUnits="userSpaceOnUse">
+      <circle cx="1.6" cy="1.6" r="1.6" fill="#E8B84B" fill-opacity="0.07"/>
+    </pattern>
+    <!-- aged-paper vignette to age the parchment without busyness -->
+    <radialGradient id="age" cx="50%" cy="42%" r="72%">
+      <stop offset="0%" stop-color="#FBF6EC" stop-opacity="0"/>
+      <stop offset="78%" stop-color="#E8DcC2" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#C8902B" stop-opacity="0.16"/>
+    </radialGradient>
+    <!-- subtle radial sheen on the wax seal -->
+    <radialGradient id="sealSheen" cx="38%" cy="32%" r="78%">
+      <stop offset="0%" stop-color="#24365A"/>
+      <stop offset="62%" stop-color="#1B2A4A"/>
+      <stop offset="100%" stop-color="#13203B"/>
+    </radialGradient>
+    <!-- the locked franchise crown mark, reusable -->
+    <g id="crown">
+      <path d="M6 72 L6 52 L18 10 L34 44 L50 2 L66 44 L82 10 L94 52 L94 72 Z" fill="#E8B84B"/>
+      <circle cx="18" cy="10" r="6" fill="#E8B84B"/>
+      <circle cx="50" cy="3" r="7" fill="#E8B84B"/>
+      <circle cx="82" cy="10" r="6" fill="#E8B84B"/>
+      <circle cx="50" cy="60" r="6" fill="#C8302A"/>
+    </g>
+    <!-- a small heraldic fleuron ornament -->
+    <g id="fleuron">
+      <path d="M0 0 C 9 -7 9 -22 0 -30 C -9 -22 -9 -7 0 0 Z" fill="#E8B84B"/>
+      <circle cx="0" cy="-34" r="3.4" fill="#C8302A"/>
+    </g>
+  </defs>
+
+  <!-- ===== FIELD: cream parchment ===== -->
+  <rect x="0" y="0" width="1600" height="2000" fill="#FBF6EC"/>
+  <rect x="0" y="0" width="1600" height="2000" fill="url(#dotsInk)"/>
+  <rect x="0" y="0" width="1600" height="2000" fill="url(#age)"/>
+
+  <!-- ===== HERALDIC BORDER (double gold hairline + ink keyline) ===== -->
+  <rect x="80" y="80" width="1440" height="1840" fill="none" stroke="#E8B84B" stroke-width="3"/>
+  <rect x="100" y="100" width="1400" height="1800" fill="none" stroke="#1A1714" stroke-width="1" stroke-opacity="0.55"/>
+  <rect x="108" y="108" width="1384" height="1784" fill="none" stroke="#E8B84B" stroke-width="1.4" stroke-opacity="0.85"/>
+
+  <!-- corner fleurons -->
+  <g transform="translate(150,150) rotate(135)"><use href="#fleuron"/></g>
+  <g transform="translate(1450,150) rotate(225)"><use href="#fleuron"/></g>
+  <g transform="translate(150,1850) rotate(45)"><use href="#fleuron"/></g>
+  <g transform="translate(1450,1850) rotate(315)"><use href="#fleuron"/></g>
+
+  <!-- ===== TOP EYEBROW ===== -->
+  <text x="800" y="214" text-anchor="middle" font-size="26" letter-spacing="11" fill="#1B2A4A" font-weight="700">BY ORDER OF THE COURT</text>
+  <!-- thin rule with center fleuron under eyebrow -->
+  <line x1="300" y1="246" x2="740" y2="246" stroke="#E8B84B" stroke-width="2"/>
+  <line x1="860" y1="246" x2="1300" y2="246" stroke="#E8B84B" stroke-width="2"/>
+  <g transform="translate(800,258) rotate(180) scale(0.82)"><use href="#fleuron"/></g>
+
+  <!-- ===== WAX-SEAL EMBLEM: navy roundel, gold crown ===== -->
+  <g transform="translate(800,452)">
+    <!-- scalloped outer ring to read as a wax seal -->
+    <circle r="150" fill="#1B2A4A"/>
+    <circle r="150" fill="url(#dotsGold)"/>
+    <circle r="150" fill="none" stroke="#13203B" stroke-width="2"/>
+    <circle r="138" fill="url(#sealSheen)"/>
+    <circle r="138" fill="none" stroke="#E8B84B" stroke-width="2.4"/>
+    <circle r="120" fill="none" stroke="#E8B84B" stroke-width="1" stroke-opacity="0.55" stroke-dasharray="2 6"/>
+    <!-- crown centered: native box ~100x72, scaled, lifted slightly for the meter -->
+    <g transform="translate(-66,-64) scale(1.32)"><use href="#crown"/></g>
+    <!-- the favor meter: signature gold bar, partially filled -->
+    <g transform="translate(-76,40)">
+      <rect x="0" y="0" width="152" height="18" rx="9" fill="#13203B" stroke="#E8B84B" stroke-width="1.6"/>
+      <rect x="2.5" y="2.5" width="101" height="13" rx="6.5" fill="#E8B84B"/>
+      <rect x="2.5" y="2.5" width="101" height="6" rx="3" fill="#F2D07E"/>
+    </g>
+  </g>
+
+  <!-- ===== WORDMARK ===== -->
+  <text x="800" y="752" text-anchor="middle" font-size="138" font-weight="700" fill="#1A1714" letter-spacing="2">YAPOLEON&#8217;S</text>
+  <text x="800" y="884" text-anchor="middle" font-size="138" font-weight="700" fill="#1B2A4A" letter-spacing="20">COURT</text>
+
+  <!-- decorative rule pair flanking the regal phrase -->
+  <line x1="360" y1="952" x2="660" y2="952" stroke="#E8B84B" stroke-width="2"/>
+  <circle cx="800" cy="952" r="4.5" fill="#C8302A"/>
+  <line x1="940" y1="952" x2="1240" y2="952" stroke="#E8B84B" stroke-width="2"/>
+
+  <!-- ===== REGAL PHRASE ===== -->
+  <text x="800" y="1024" text-anchor="middle" font-size="40" fill="#1A1714" font-style="italic" letter-spacing="1">&#8220;His taste is the scoring function.&#8221;</text>
+  <text x="800" y="1086" text-anchor="middle" font-size="27" fill="#1B2A4A" letter-spacing="6" font-weight="700">CHARM THE AI EMPEROR &#183; WIN HIS FAVOR IN THREE LINES</text>
+
+  <!-- ===== SECTION DIVIDER ===== -->
+  <line x1="200" y1="1176" x2="1400" y2="1176" stroke="#1A1714" stroke-width="1" stroke-opacity="0.30"/>
+  <g transform="translate(800,1176) scale(0.78)"><use href="#fleuron"/></g>
+
+  <!-- ===== PALETTE SWATCH ROW (5 chips, labeled with hex) ===== -->
+  <text x="200" y="1262" font-size="22" letter-spacing="6" fill="#1B2A4A" font-weight="700">THE IMPERIAL PALETTE</text>
+  <g transform="translate(200,1296)">
+    <!-- chip width 224, gap 20 -> 5*224 + 4*20 = 1200 across -->
+    <g transform="translate(0,0)">
+      <rect width="224" height="150" rx="6" fill="#1B2A4A" stroke="#1A1714" stroke-opacity="0.18" stroke-width="1"/>
+      <text x="16" y="118" font-size="22" fill="#FBF6EC" font-weight="700">NAVY</text>
+      <text x="16" y="142" font-size="17" fill="#F2D07E" letter-spacing="1">#1B2A4A</text>
+    </g>
+    <g transform="translate(244,0)">
+      <rect width="224" height="150" rx="6" fill="#E8B84B" stroke="#1A1714" stroke-opacity="0.18" stroke-width="1"/>
+      <text x="16" y="118" font-size="22" fill="#1A1714" font-weight="700">GOLD</text>
+      <text x="16" y="142" font-size="17" fill="#1A1714" letter-spacing="1">#E8B84B</text>
+    </g>
+    <g transform="translate(488,0)">
+      <rect width="224" height="150" rx="6" fill="#C8302A" stroke="#1A1714" stroke-opacity="0.18" stroke-width="1"/>
+      <text x="16" y="118" font-size="22" fill="#FBF6EC" font-weight="700">CRIMSON</text>
+      <text x="16" y="142" font-size="17" fill="#FBF6EC" letter-spacing="1">#C8302A</text>
+    </g>
+    <g transform="translate(732,0)">
+      <rect width="224" height="150" rx="6" fill="#FBF6EC" stroke="#1A1714" stroke-opacity="0.35" stroke-width="1.2"/>
+      <text x="16" y="118" font-size="22" fill="#1A1714" font-weight="700">CREAM</text>
+      <text x="16" y="142" font-size="17" fill="#1A1714" letter-spacing="1">#FBF6EC</text>
+    </g>
+    <g transform="translate(976,0)">
+      <rect width="224" height="150" rx="6" fill="#1A1714" stroke="#1A1714" stroke-opacity="0.18" stroke-width="1"/>
+      <text x="16" y="118" font-size="22" fill="#FBF6EC" font-weight="700">INK</text>
+      <text x="16" y="142" font-size="17" fill="#E8B84B" letter-spacing="1">#1A1714</text>
+    </g>
+  </g>
+
+  <!-- ===== TYPE SPECIMEN ===== -->
+  <text x="200" y="1574" font-size="22" letter-spacing="6" fill="#1B2A4A" font-weight="700">THE COURT TYPEFACES</text>
+  <g transform="translate(200,1600)">
+    <!-- display specimen -->
+    <rect x="0" y="0" width="590" height="210" rx="6" fill="none" stroke="#E8B84B" stroke-width="1.6"/>
+    <text x="32" y="120" font-size="118" font-weight="700" fill="#1A1714">Aa</text>
+    <text x="190" y="92" font-size="30" font-weight="700" fill="#1B2A4A">Bricolage Grotesque</text>
+    <text x="190" y="128" font-size="20" fill="#1A1714" letter-spacing="2">DISPLAY &#183; BOLD</text>
+    <text x="32" y="180" font-size="20" fill="#1A1714" letter-spacing="3">A B C D E F G &#183; 0 1 2 3</text>
+    <!-- body specimen -->
+    <g transform="translate(610,0)">
+      <rect x="0" y="0" width="590" height="210" rx="6" fill="none" stroke="#E8B84B" stroke-width="1.6"/>
+      <text x="32" y="120" font-size="118" fill="#1A1714">Aa</text>
+      <text x="190" y="92" font-size="30" font-weight="700" fill="#1B2A4A">Inter</text>
+      <text x="190" y="128" font-size="20" fill="#1A1714" letter-spacing="2">BODY &#183; REGULAR</text>
+      <text x="32" y="180" font-size="20" fill="#1A1714" letter-spacing="1">The wit, never the person.</text>
+    </g>
+  </g>
+
+  <!-- ===== FOOTER: ranks ladder + url, sealed ===== -->
+  <line x1="200" y1="1856" x2="1400" y2="1856" stroke="#1A1714" stroke-width="1" stroke-opacity="0.30"/>
+  <g transform="translate(800,1856) scale(0.74)"><use href="#fleuron"/></g>
+  <text x="200" y="1844" font-size="22" letter-spacing="5" fill="#1B2A4A" font-weight="700">THE DAILY GAME OF FAVOR</text>
+  <text x="200" y="1882" font-size="23" fill="#1A1714" letter-spacing="1">Three lines<tspan fill="#E8B84B" font-weight="700">  &#8594;  </tspan>favor 100<tspan fill="#E8B84B" font-weight="700">  &#8594;  </tspan>the Emperor concedes</text>
+  <text x="1400" y="1844" text-anchor="end" font-size="22" letter-spacing="4" fill="#1B2A4A" font-weight="700">EST. MMXXVI</text>
+  <text x="1400" y="1882" text-anchor="end" font-size="24" fill="#C8302A" font-weight="700" letter-spacing="2">court.yapoleon.com</text>
+</svg>

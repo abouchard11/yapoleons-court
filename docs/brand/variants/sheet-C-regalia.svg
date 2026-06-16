@@ -1,0 +1,169 @@
+<svg viewBox="0 0 1600 2000" xmlns="http://www.w3.org/2000/svg" font-family="Helvetica Neue, Helvetica, Arial, sans-serif">
+  <defs>
+    <!-- Imperial navy field, subtle vertical gradient -->
+    <linearGradient id="field" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#203357"/>
+      <stop offset="0.55" stop-color="#1B2A4A"/>
+      <stop offset="1" stop-color="#16233E"/>
+    </linearGradient>
+
+    <!-- Gold vertical sheen for the crown -->
+    <linearGradient id="goldSheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F2D07E"/>
+      <stop offset="0.5" stop-color="#E8B84B"/>
+      <stop offset="1" stop-color="#C8902B"/>
+    </linearGradient>
+
+    <!-- Gold rule gradient for the frame strokes -->
+    <linearGradient id="goldRule" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F2D07E"/>
+      <stop offset="1" stop-color="#C8902B"/>
+    </linearGradient>
+
+    <!-- Favor meter fill -->
+    <linearGradient id="meterFill" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#C8902B"/>
+      <stop offset="0.5" stop-color="#E8B84B"/>
+      <stop offset="1" stop-color="#F2D07E"/>
+    </linearGradient>
+
+    <!-- Crimson gem gradient -->
+    <radialGradient id="gem" cx="0.38" cy="0.34" r="0.75">
+      <stop offset="0" stop-color="#E0564F"/>
+      <stop offset="0.5" stop-color="#C8302A"/>
+      <stop offset="1" stop-color="#8E211C"/>
+    </radialGradient>
+
+    <!-- 22px dotted parchment grid on navy: gold dots ~7% -->
+    <pattern id="dotsGold" width="22" height="22" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#E8B84B" fill-opacity="0.07"/>
+    </pattern>
+    <!-- 22px dotted grid on cream: ink dots ~6% -->
+    <pattern id="dotsInk" width="22" height="22" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#1A1714" fill-opacity="0.06"/>
+    </pattern>
+
+    <!-- Soft glow behind crown -->
+    <radialGradient id="halo" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#E8B84B" stop-opacity="0.22"/>
+      <stop offset="0.6" stop-color="#E8B84B" stop-opacity="0.06"/>
+      <stop offset="1" stop-color="#E8B84B" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Reusable crown mark (locked franchise path) ~100x72 -->
+    <g id="crownMark">
+      <path d="M6 72 L6 52 L18 10 L34 44 L50 2 L66 44 L82 10 L94 52 L94 72 Z" fill="#E8B84B"/>
+      <circle cx="18" cy="10" r="6" fill="#E8B84B"/>
+      <circle cx="50" cy="3" r="7" fill="#E8B84B"/>
+      <circle cx="82" cy="10" r="6" fill="#E8B84B"/>
+      <circle cx="50" cy="60" r="6" fill="#C8302A"/>
+    </g>
+  </defs>
+
+  <!-- ===== FIELD ===== -->
+  <rect x="0" y="0" width="1600" height="2000" fill="url(#field)"/>
+  <rect x="0" y="0" width="1600" height="2000" fill="url(#dotsGold)"/>
+
+  <!-- ===== DOUBLE-RULE ORNAMENTAL FRAME ===== -->
+  <!-- outer rule -->
+  <rect x="96" y="96" width="1408" height="1808" fill="none" stroke="url(#goldRule)" stroke-width="4"/>
+  <!-- inner rule -->
+  <rect x="120" y="120" width="1360" height="1760" fill="none" stroke="url(#goldRule)" stroke-width="2"/>
+
+  <!-- corner ornaments: gold L-brackets with a seated diamond at each frame corner -->
+  <g>
+    <g transform="translate(108,108)"><path d="M0 56 V0 H56" stroke="#E8B84B" stroke-width="4" fill="none"/><path d="M0 0 l11 11 -11 11 -11 -11 z" fill="#E8B84B"/></g>
+    <g transform="translate(1492,108)"><path d="M0 56 V0 H-56" stroke="#E8B84B" stroke-width="4" fill="none"/><path d="M0 0 l11 11 -11 11 -11 -11 z" fill="#E8B84B"/></g>
+    <g transform="translate(108,1892)"><path d="M0 -56 V0 H56" stroke="#E8B84B" stroke-width="4" fill="none"/><path d="M0 0 l11 11 -11 11 -11 -11 z" fill="#E8B84B"/></g>
+    <g transform="translate(1492,1892)"><path d="M0 -56 V0 H-56" stroke="#E8B84B" stroke-width="4" fill="none"/><path d="M0 0 l11 11 -11 11 -11 -11 z" fill="#E8B84B"/></g>
+  </g>
+
+  <!-- ===== TOP EYEBROW ===== -->
+  <g transform="translate(800,250)" text-anchor="middle">
+    <text x="0" y="0" fill="#F2D07E" font-size="30" letter-spacing="14" font-weight="700">THE DAILY GAME OF FAVOR</text>
+    <!-- thin gold flourish under eyebrow -->
+    <g stroke="#C8902B" stroke-width="2" fill="none">
+      <line x1="-210" y1="34" x2="-30" y2="34"/>
+      <line x1="30" y1="34" x2="210" y2="34"/>
+    </g>
+    <circle cx="0" cy="34" r="4" fill="#E8B84B"/>
+  </g>
+
+  <!-- ===== HERO CROWN ===== -->
+  <g transform="translate(800,640)">
+    <ellipse cx="0" cy="40" rx="430" ry="380" fill="url(#halo)"/>
+    <!-- crown scaled up; base box 100x72 -> 5x => 500x360, centered -->
+    <g transform="translate(-250,-180) scale(5)">
+      <path d="M6 72 L6 52 L18 10 L34 44 L50 2 L66 44 L82 10 L94 52 L94 72 Z" fill="url(#goldSheen)" stroke="#C8902B" stroke-width="0.8"/>
+      <circle cx="18" cy="10" r="6" fill="url(#goldSheen)"/>
+      <circle cx="50" cy="3" r="7" fill="url(#goldSheen)"/>
+      <circle cx="82" cy="10" r="6" fill="url(#goldSheen)"/>
+      <!-- gold bezel seating the gem into the band -->
+      <circle cx="50" cy="56" r="8" fill="url(#goldSheen)" stroke="#C8902B" stroke-width="0.5"/>
+      <circle cx="50" cy="56" r="6" fill="url(#gem)" stroke="#8E211C" stroke-width="0.5"/>
+      <!-- gem facet highlight -->
+      <circle cx="48" cy="54" r="1.8" fill="#F2D07E" fill-opacity="0.9"/>
+    </g>
+  </g>
+
+  <!-- ===== WORDMARK ===== -->
+  <g transform="translate(800,1110)" text-anchor="middle">
+    <text x="0" y="0" fill="#FBF6EC" font-size="148" font-weight="700" letter-spacing="-2">YAPOLEON&#8217;S</text>
+    <text x="0" y="150" fill="#E8B84B" font-size="148" font-weight="700" letter-spacing="14">COURT</text>
+  </g>
+
+  <!-- ===== TAGLINE ===== -->
+  <g transform="translate(800,1370)" text-anchor="middle">
+    <text x="0" y="0" fill="#FBF6EC" fill-opacity="0.92" font-size="42" font-weight="400" font-style="italic">Charm the AI emperor.</text>
+  </g>
+
+  <!-- ===== FAVOR METER ===== -->
+  <g transform="translate(420,1500)">
+    <text x="0" y="-26" fill="#F2D07E" font-size="26" letter-spacing="6" font-weight="700">FAVOR</text>
+    <text x="760" y="-26" fill="#F2D07E" font-size="26" letter-spacing="2" font-weight="700" text-anchor="end">72 / 100</text>
+    <!-- track -->
+    <rect x="0" y="0" width="760" height="38" rx="19" fill="#16233E" stroke="#C8902B" stroke-width="2"/>
+    <!-- fill 72% -->
+    <rect x="3" y="3" width="541" height="32" rx="16" fill="url(#meterFill)"/>
+    <!-- tick at the head of the fill -->
+    <circle cx="544" cy="19" r="8" fill="#FBF6EC" stroke="#C8902B" stroke-width="2"/>
+  </g>
+
+  <!-- ===== SCORING LINE ===== -->
+  <g transform="translate(800,1640)" text-anchor="middle">
+    <text x="0" y="0" fill="#FBF6EC" fill-opacity="0.78" font-size="30" font-weight="400" letter-spacing="1">His taste is the scoring function.</text>
+  </g>
+
+  <!-- ===== PALETTE STRIP ===== -->
+  <g transform="translate(430,1730)" text-anchor="middle" font-size="20" font-weight="700" letter-spacing="1">
+    <g transform="translate(0,0)">
+      <rect x="-46" y="-46" width="92" height="92" rx="10" fill="#1B2A4A" stroke="#C8902B" stroke-width="1.5"/>
+      <text x="0" y="78" fill="#FBF6EC" fill-opacity="0.85">NAVY</text>
+    </g>
+    <g transform="translate(123,0)">
+      <rect x="-46" y="-46" width="92" height="92" rx="10" fill="#E8B84B"/>
+      <text x="0" y="78" fill="#FBF6EC" fill-opacity="0.85">GOLD</text>
+    </g>
+    <g transform="translate(246,0)">
+      <rect x="-46" y="-46" width="92" height="92" rx="10" fill="#C8302A"/>
+      <text x="0" y="78" fill="#FBF6EC" fill-opacity="0.85">CRIMSON</text>
+    </g>
+    <g transform="translate(369,0)">
+      <rect x="-46" y="-46" width="92" height="92" rx="10" fill="#FBF6EC"/>
+      <text x="0" y="78" fill="#FBF6EC" fill-opacity="0.85">CREAM</text>
+    </g>
+    <g transform="translate(492,0)">
+      <rect x="-46" y="-46" width="92" height="92" rx="10" fill="#1A1714" stroke="#C8902B" stroke-width="1.5"/>
+      <text x="0" y="78" fill="#FBF6EC" fill-opacity="0.85">INK</text>
+    </g>
+  </g>
+
+  <!-- ===== FOOTER URL on a cream collector plate ===== -->
+  <g transform="translate(800,1880)" text-anchor="middle">
+    <rect x="-340" y="-52" width="680" height="86" rx="43" fill="#FBF6EC"/>
+    <rect x="-340" y="-52" width="680" height="86" rx="43" fill="url(#dotsInk)"/>
+    <rect x="-340" y="-52" width="680" height="86" rx="43" fill="none" stroke="#C8902B" stroke-width="2"/>
+    <use href="#crownMark" transform="translate(-300,-25) scale(0.5)"/>
+    <text x="20" y="11" fill="#1A1714" font-size="38" font-weight="700" letter-spacing="2">court.yapoleon.com</text>
+  </g>
+</svg>

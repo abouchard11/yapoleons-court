@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 112" fill="currentColor" color="#1A1714" role="img" aria-label="Yapoleon's Court mark">
+  <!-- Single-color KNOCKOUT mark: crown + favor meter, NO crimson gem, transparent bg.
+       This is the recolorable master — set `color` (currentColor) to render a variant:
+         ink #1A1714 on light · cream #FBF6EC on dark/photo · gold #E8B84B on navy.
+       Never use this on a busy background without enough contrast. -->
+  <g transform="translate(14,8)">
+    <path d="M6 72 L6 52 L18 10 L34 44 L50 2 L66 44 L82 10 L94 52 L94 72 Z"/>
+    <circle cx="18" cy="10" r="6"/>
+    <circle cx="50" cy="3" r="7"/>
+    <circle cx="82" cy="10" r="6"/>
+  </g>
+  <rect x="24" y="92" width="80" height="9" rx="4.5"/>
+</svg>
