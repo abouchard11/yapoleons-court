@@ -39,6 +39,7 @@ import {
   type RoundState,
   type CanPlayResult,
 } from './round';
+import { shareVerdict, buildVerdictShareParts, type VerdictCardData } from './share';
 
 // The submit/UI phase OVER the round state. The round's own status (playing/won/
 // lost) is the durable truth; `uiPhase` tracks the transient in-flight/reveal/error
@@ -59,6 +60,15 @@ export default function RoundScreen() {
   const [reply, setReply] = useState('');
   const [uiPhase, setUiPhase] = useState<UiPhase>('idle');
   const identityReady = useRef(false);
+
+  // 02-06 share state. winStreak (D-03) comes from /api/court-can-play on mount and
+  // feeds the card's standing slot. sharePending guards the CTA while drawing. cardError
+  // flips the EndState CTA over to the "portraitist faltered" retry. toast announces the
+  // desktop "Card saved!" path (aria-live polite).
+  const [winStreak, setWinStreak] = useState(0);
+  const [sharePending, setSharePending] = useState(false);
+  const [cardError, setCardError] = useState(false);
+  const [toast, setToast] = useState('');
 
   // On mount: mint/reuse the anon identity (01-01), ask the server whether the day
   // is still playable (replay check), then resolve the round (server-authoritative).
@@ -82,6 +92,10 @@ export default function RoundScreen() {
             allowed: data.allowed !== false,
             existingRound: data.existingRound ?? null,
           };
+          // winStreak (D-03) is additive on the can-play response; hold it for the card.
+          if (!cancelled && typeof data.winStreak === 'number') {
+            setWinStreak(data.winStreak);
+          }
         }
       } catch {
         // Offline / identity-mint failure: fall back to the local cache (best-effort).
@@ -116,6 +130,55 @@ export default function RoundScreen() {
   // round), else the static in-voice fallback (a server-loaded replay-blocked round).
   const endLine = (outcome: 'won' | 'lost'): string =>
     lastReaction || FALLBACK_END_LINE[outcome];
+
+  // ── Fresh-play gate (02-06 / T-02-16, Pitfall 1) ──────────────────────────────
+  // roundFromServer (round.ts:120-123) reconstructs a replay-blocked round with
+  // PLACEHOLDER turns: reply:'' + result.reaction:''. A card built from those would
+  // carry BLANK quotes. The resolved scope is FRESH-PLAY-ONLY: a card is only ever
+  // produced when the last turn carries a real reply (a freshly-played round). On a
+  // replay-blocked re-open this is false, so no onShare is passed and the CTA is
+  // omitted (degrade, never a blank-quote card).
+  const isFreshPlay = finished && (lastTurn?.reply ?? '') !== '';
+
+  // 02-06 — assemble the live card payload and fire the web-first share cascade.
+  // heroLine: the player's winning reply on a win (the brag) / the savage dismissal
+  // line on a loss. concessionLine: the judge's final reaction (WIN only). Everything
+  // is read from the LIVE RoundState + the captured winStreak; no second model call.
+  async function handleShare(outcome: 'won' | 'lost') {
+    if (!demand || !round) return;
+    const last = round.turns[round.turns.length - 1];
+    if (!last) return; // defensive — only reachable on a freshly-played finished round
+
+    const data: VerdictCardData = {
+      outcome,
+      demandScene: demand.scene,
+      heroLine: outcome === 'won' ? last.reply : last.result.reaction,
+      concessionLine: outcome === 'won' ? last.result.reaction : undefined,
+      turnsUsed: round.turns.length,
+      tierLabel: 'Fair Fight',
+      winStreak,
+    };
+
+    setCardError(false);
+    setSharePending(true);
+    try {
+      await shareVerdict(data, buildVerdictShareParts(outcome), showToast, round.day);
+    } catch {
+      // drawVerdictCard / canvas failure → the in-voice card-error state ("The
+      // Emperor's portraitist faltered.") with a Try Again that re-attempts the draw.
+      // A user-cancel of the OS sheet is swallowed inside shareVerdict (not here).
+      setCardError(true);
+    } finally {
+      setSharePending(false);
+    }
+  }
+
+  // Toast helper (desktop "Card saved!" path; aria-live polite). Mirrors the source
+  // engine's ~8s auto-dismiss toast.
+  function showToast(msg: string) {
+    setToast(msg);
+    window.setTimeout(() => setToast(''), 8000);
+  }
 
   // submitTurn judges the CURRENT reply and, on success, applies exactly one turn.
   // On failure it leaves the round untouched (no turn consumed) and enters `error`,
@@ -186,12 +249,43 @@ export default function RoundScreen() {
           {/* Pending: "Yapoleon considers…" (the deliberation beat). */}
           <PendingIndicator visible={uiPhase === 'pending'} />
 
-          {/* WON / LOST takeover (read-only — whether freshly played or replay-blocked). */}
+          {/* WON / LOST takeover (read-only — whether freshly played or replay-blocked).
+              The Share CTA (onShare) is GATED to the fresh-play path (isFreshPlay):
+              on a replay-blocked re-open onShare is undefined so the CTA is omitted —
+              never a blank-quote card (T-02-16). winStreak feeds the standing slot. */}
           {round.status === 'won' && (
-            <EndState outcome="won" line={endLine('won')} turnsUsed={round.turns.length} />
+            <EndState
+              outcome="won"
+              line={endLine('won')}
+              turnsUsed={round.turns.length}
+              winStreak={winStreak}
+              onShare={isFreshPlay ? () => void handleShare('won') : undefined}
+              sharePending={sharePending}
+            />
           )}
           {round.status === 'lost' && (
-            <EndState outcome="lost" line={endLine('lost')} turnsUsed={round.turns.length} />
+            <EndState
+              outcome="lost"
+              line={endLine('lost')}
+              turnsUsed={round.turns.length}
+              winStreak={winStreak}
+              onShare={isFreshPlay ? () => void handleShare('lost') : undefined}
+              sharePending={sharePending}
+            />
+          )}
+
+          {/* Card-generation error (02-06) — the in-voice "portraitist faltered" retry,
+              reusing the ErrorState pattern. Try Again re-attempts the SAME draw. Only
+              shown on a fresh-play finished round (the only path that can draw). */}
+          {finished && isFreshPlay && cardError && (
+            <CardErrorState onRetry={() => void handleShare(round.status === 'won' ? 'won' : 'lost')} disabled={sharePending} />
+          )}
+
+          {/* Share success toast (desktop "Card saved!" path; aria-live polite). */}
+          {toast && (
+            <p role="status" aria-live="polite" style={toastStyle}>
+              {toast}
+            </p>
           )}
 
           {/* ERROR: a failed judge call — "Try Again" re-issues the same turn. */}
@@ -242,3 +336,69 @@ const remainingHintStyle: React.CSSProperties = {
   margin: 0,
   textAlign: 'center',
 };
+
+const toastStyle: React.CSSProperties = {
+  fontFamily: 'Inter, system-ui, sans-serif',
+  fontSize: '14px',
+  color: 'var(--yap-navy)',
+  margin: 0,
+  textAlign: 'center',
+};
+
+// The card-generation error state (02-06; UI-SPEC Copywriting Contract "Error state
+// (card generation fails)"). Distinct copy from the judge-failure ErrorState.tsx — the
+// canvas/toBlob draw failed, so we surface "The Emperor's portraitist faltered." with a
+// Try Again that re-attempts the SAME draw (no turn/favor change — the round is over).
+// Reuses the ErrorState visual pattern: 20px/700 navy heading + 16px body + 48px
+// outlined retry. Announced via role="alert".
+function CardErrorState({ onRetry, disabled = false }: { onRetry: () => void; disabled?: boolean }) {
+  return (
+    <div role="alert" style={{ display: 'flex', flexDirection: 'column', gap: '12px', textAlign: 'center' }}>
+      <p
+        style={{
+          fontFamily: '"Bricolage Grotesque", system-ui, sans-serif',
+          fontSize: '20px',
+          fontWeight: 700,
+          lineHeight: 1.2,
+          color: 'var(--yap-navy)',
+          margin: 0,
+        }}
+      >
+        The Emperor's portraitist faltered.
+      </p>
+      <p
+        style={{
+          fontFamily: 'Inter, system-ui, sans-serif',
+          fontSize: '16px',
+          lineHeight: 1.5,
+          color: 'rgba(27, 42, 74, 0.75)',
+          margin: 0,
+        }}
+      >
+        The card could not be drawn. Try again.
+      </p>
+      <button
+        type="button"
+        onClick={onRetry}
+        disabled={disabled}
+        style={{
+          alignSelf: 'center',
+          minHeight: '48px',
+          minWidth: '44px',
+          padding: '12px 24px',
+          borderRadius: '8px',
+          border: '1.5px solid var(--yap-navy)',
+          backgroundColor: 'transparent',
+          color: 'var(--yap-navy)',
+          fontFamily: '"Bricolage Grotesque", system-ui, sans-serif',
+          fontSize: '16px',
+          fontWeight: 700,
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          opacity: disabled ? 0.5 : 1,
+        }}
+      >
+        Try Again
+      </button>
+    </div>
+  );
+}
