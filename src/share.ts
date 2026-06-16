@@ -129,20 +129,35 @@ function measureWrappedHeight(
 /**
  * The in-voice caption + court.yapoleon.com link that travel WITH the card PNG.
  *
- * ⚠️ PLACEHOLDER COPY — pending the Plan 06 human voice-review (D-06). These two
- * lines are the author-drafted in register (Wilde/Twain, ego-is-the-joke, all-ages);
- * they are NOT finalized here. Plan 06 swaps in the voice-reviewed strings.
- * The caption + URL carry NO PII (anonymous play — T-02-14, COPPA-safe).
+ * ── IN-VOICE DRAFTS (02-06) — pending the operator's Task-2 voice-review (D-06) ──
+ * the author-drafted in register (Wilde/Twain epigram, ego-is-the-joke, all-ages/PG,
+ * third-person "Yapoleon", no emoji for clean OS share sheets). The savagery targets
+ * the GAME / Yapoleon's own deniable ego — NEVER the player or protected traits (D-04;
+ * must not obviously fail the Phase-4 safe-savagery bound). the author drafts → the author
+ * approves: these are NOT final. The caption + URL carry NO PII (anonymous play —
+ * T-02-14 / SAFE-03, COPPA-safe).
+ *
+ *   WIN  — a brag the winner posts; the joke is Yapoleon's grudging, deniable defeat.
+ *          Chosen draft:  "Yapoleon conceded today. He is already drafting the version
+ *                          of events where he didn't."
+ *          Alternate:     "Today Yapoleon granted his favor — and insists it was always
+ *                          the plan."
+ *   LOSS — bait the friend with the setup; let the loser save face by framing it as a
+ *          shared challenge. The barb is the Emperor's bar, not the player.
+ *          Chosen draft:  "Yapoleon remains unmoved. His favor is still on the table —
+ *                          go on, be the one who earns it."
+ *          Alternate:     "Yapoleon was not charmed today. He doubts you'll fare better
+ *                          — prove the Emperor wrong."
  */
 export function buildVerdictShareParts(outcome: 'won' | 'lost'): ShareParts {
   return {
     title: "Yapoleon's Court",
     text:
       outcome === 'won'
-        ? // PLACEHOLDER (win) — pending 02-06 voice-review:
-          'Yapoleon conceded. He will deny it.'
-        : // PLACEHOLDER (loss) — pending 02-06 voice-review:
-          'Yapoleon was unmoved. Your turn to fail better.',
+        ? // WIN (in-voice draft — pending 02-06 voice-review):
+          'Yapoleon conceded today. He is already drafting the version of events where he didn’t.'
+        : // LOSS (in-voice draft — pending 02-06 voice-review):
+          'Yapoleon remains unmoved. His favor is still on the table — go on, be the one who earns it.',
     url: 'https://court.yapoleon.com/',
   };
 }
