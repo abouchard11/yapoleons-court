@@ -92,9 +92,44 @@ export default async function handler(req, res) {
     const finished = existingRound
       && (existingRound.outcome === 'won' || existingRound.outcome === 'lost');
 
+    // Win-streak (D-03) — a LIVE, read-only derivation over court_rounds. NO stored
+    // counter, NO ALTER TABLE, NO migration. The streak feeds the share card's
+    // "standing" slot (02-05). The query is scoped to player.id resolved STRICTLY
+    // from the bearer token above (V4 access control / T-02-12) — a client-supplied
+    // player_id is never trusted, so one player can never read another's streak.
+    //
+    // Reset rule (A3, Wordle convention): the run is the count of CONSECUTIVE
+    // integer `day` values with outcome='won', counted DOWN from the most-recent
+    // WON day. A lost or not-played day before that most-recent WON day stops the
+    // run (the first gap in the day sequence breaks it). Because we anchor at the
+    // most-recent WON day (not at `today`), a day that has not yet been played does
+    // not zero the streak — it only stops growing until the next win extends it.
+    const { data: wonDays } = await sb
+      .from('court_rounds')
+      .select('day, outcome')
+      .eq('player_id', player.id)
+      .eq('outcome', 'won')
+      .order('day', { ascending: false });
+
+    let winStreak = 0;
+    if (wonDays && wonDays.length) {
+      let expected = wonDays[0].day; // anchor at the most-recent WON day
+      for (const r of wonDays) {
+        if (r.day === expected) {
+          winStreak++;
+          expected--; // next consecutive day back
+        } else {
+          break; // first gap ends the run
+        }
+      }
+    }
+
+    // ADDITIVE ONLY: { allowed, existingRound } are unchanged so the Phase-1
+    // replay-lock keeps working; winStreak is a new field beside them.
     res.status(200).json({
       allowed: !finished,
       existingRound: existingRound || null,
+      winStreak,
     });
   } catch (err) {
     res.status(500).json({ error: 'Internal error', detail: err.message });
