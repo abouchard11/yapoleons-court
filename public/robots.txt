@@ -1,0 +1,6 @@
+# Yapoleon's Court — lean validation MVP.
+# Intentionally kept out of search until the Phase 2 share loop ships;
+# at public launch, replace with an allow + a sitemap and drop the noindex
+# meta (index.html) and X-Robots-Tag header (vercel.json).
+User-agent: *
+Disallow: /
