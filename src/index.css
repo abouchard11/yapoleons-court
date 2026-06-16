@@ -1,0 +1,192 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --yap-navy: #1B2A4A;
+  --yap-gold: #E8B84B;
+  --yap-crimson: #C8302A;
+  --yap-cream: #FBF6EC;
+  --yap-ink: #1A1714;
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  overscroll-behavior: none;
+  background-color: #FBF6EC;
+  background-image: radial-gradient(rgba(31, 28, 22, 0.07) 1.6px, transparent 1.6px);
+  background-size: 22px 22px;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: env(safe-area-inset-top, 0px);
+  background-color: #FBF6EC;
+  background-image: radial-gradient(rgba(31, 28, 22, 0.07) 1.6px, transparent 1.6px);
+  background-size: 22px 22px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* iOS safe area: pushes content inside Dynamic Island, notch, and home indicator zones.
+   Requires viewport-fit=cover (already in index.html line 11) and
+   contentInset: 'always' (in capacitor.config.ts ios config).
+   Applied to #root, not body, so the dotted-paper background extends edge-to-edge. */
+#root {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+html.capacitor-ios #root {
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Safe area utility classes for position:fixed elements (which break out of #root padding) */
+.safe-area-top { padding-top: env(safe-area-inset-top); }
+.safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); }
+
+html.capacitor-ios .safe-area-top { padding-top: env(safe-area-inset-top, 0px); }
+html.capacitor-ios .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
+
+/* Game container: fills available height minus safe area insets.
+   Uses 100dvh (visual viewport on iOS WKWebView with viewport-fit=cover).
+   Fallback to 100vh for browsers without dvh support. */
+.game-container {
+  min-height: calc(100vh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  min-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+html.capacitor-ios .game-container {
+  min-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+}
+
+/* Local fonts — replaces Google Fonts CDN (removed from index.html).
+   font-display: swap prevents invisible text during font load. */
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  src: url('/fonts/BricolageGrotesque-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/Inter-Latin.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/Inter-Latin.woff2') format('woff2');
+  font-weight: 500;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/Inter-Latin.woff2') format('woff2');
+  font-weight: 600;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/Inter-Latin.woff2') format('woff2');
+  font-weight: 700;
+  font-display: swap;
+}
+
+/* Sticky keyboard — pinned to viewport bottom during gameplay.
+   The keyboard div sits inside .game-container (flex column, min-height 100dvh).
+   Because game-container uses min-height (not height/overflow), the body is
+   the scroll container, so position:sticky + bottom:0 works correctly.
+   The cream background + dotted texture extends the page background behind the keys. */
+.sticky-keyboard {
+  position: sticky;
+  bottom: 0;
+  z-index: 30;
+  background-color: #FBF6EC;
+  background-image: radial-gradient(rgba(31, 28, 22, 0.07) 1.6px, transparent 1.6px);
+  background-size: 22px 22px;
+  padding-top: 6px;
+  border-top: 1.5px solid rgba(31, 28, 22, 0.12);
+  margin-left: -16px;
+  margin-right: -16px;
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+html.capacitor-ios .sticky-keyboard {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Cursor blink is JS-driven (useCursorBlink hook) — CSS animations
+   are unreliable inside WKWebView's 3D flip-tile context.
+   prefers-reduced-motion: the hook could check this, but a static
+   cursor is acceptable and still signals the active tile. */
+
+/* ── Dark appearance (Phase 31, D-04) ─────────────────────────────────────
+   Driven by a `.dark` class on <html>, toggled by applyAppearanceChrome()
+   from the RESOLVED appearance (OS pref or manual override — D-09).
+   Purely ADDITIVE: light rules above are untouched.
+   Same 22px hand-crafted-paper grid, inverted dots (~6% light on #1C1C1E).
+   NO transition/crossfade — instant swap only (WKWebView suppresses CSS
+   animations in 3D flip-tile contexts; UI-SPEC locks instant repaint). */
+html.dark {
+  color-scheme: dark;
+}
+
+html.dark, html.dark body {
+  background-color: #1C1C1E;
+  background-image: radial-gradient(rgba(235, 235, 245, 0.06) 1.6px, transparent 1.6px);
+  background-size: 22px 22px;
+}
+
+html.dark body::before {
+  background-color: #1C1C1E;
+  background-image: radial-gradient(rgba(235, 235, 245, 0.06) 1.6px, transparent 1.6px);
+  background-size: 22px 22px;
+}
+
+html.dark .sticky-keyboard {
+  background-color: #1C1C1E;
+  background-image: radial-gradient(rgba(235, 235, 245, 0.06) 1.6px, transparent 1.6px);
+  background-size: 22px 22px;
+  border-top: 1.5px solid rgba(235, 235, 245, 0.12);
+}
+
+/* ── Motion Contract (UI-SPEC) — prefers-reduced-motion ───────────────────────
+   The round screen's transitions (the favor-meter gold-fill width, the reaction
+   reveal fade, the end-state takeover) are also gated in JS via matchMedia inside
+   each component. This is the defense-in-depth CSS backstop: when the OS requests
+   reduced motion, collapse every transition/animation to an instant swap so the
+   meter and reveals repaint instantly (no width slide, no fade). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

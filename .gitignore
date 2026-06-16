@@ -20,3 +20,19 @@ build/
 
 # Vercel
 .vercel/
+
+# Capacitor native shells (generated via `npx cap add ios` — not committed)
+ios/
+android/
+
+# Capacitor iOS build artifacts (if ios/ is ever partially tracked)
+ios/App/Pods/
+ios/DerivedData/
+*.xcworkspace/xcuserdata/
+
+# Vite config compile cache
+*.timestamp-*.mjs
+.vercel
+
+# Supabase CLI scratch state (link metadata, never committed)
+supabase/.temp/
