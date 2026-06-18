@@ -100,6 +100,29 @@ export const reportPayload = (s: RoundState, rubricVersion: string): RoundReport
   outcome: s.status === 'playing' ? 'in_progress' : s.status,
 });
 
+// One per-turn transcript record sent to /api/court-record-round (MEM-02). The
+// server persists these verbatim into court_turns (the extractive source of truth)
+// and, on a terminal round, summarizes the dossier from them.
+export interface TurnRecord {
+  turn_index: number;
+  reply: string;
+  reaction: string;
+  favor_delta: number;
+  dominant_axis: string;
+}
+
+// Project the live turns[] into the per-turn transcript — a trivial map over the
+// existing RoundState (NO schema change). reply rides verbatim (the quote source);
+// reaction/favor_delta/dominant_axis are the judge's recorded result for that turn.
+export const transcriptPayload = (s: RoundState): TurnRecord[] =>
+  s.turns.map((t, i) => ({
+    turn_index: i,
+    reply: t.reply,
+    reaction: t.result.reaction,
+    favor_delta: t.result.favorDelta,
+    dominant_axis: t.result.dominantAxis,
+  }));
+
 // ── Server-authoritative replay-aware load (LOOP-05 / D-04) ──────────────────
 //
 // roundFromServer: reconstruct a FINISHED, read-only RoundState from a court_rounds

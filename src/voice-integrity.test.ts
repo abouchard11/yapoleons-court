@@ -43,6 +43,11 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const readProd = (rel: string): string => readFileSync(resolve(HERE, '..', rel), 'utf8');
 const PROD_YAPOLEON_JS = readProd('api/_yapoleon.js');
 const PROD_COURT_JUDGE_JS = readProd('api/court-judge.js');
+// Phase 3: the TS voice source + the greeting endpoint, read as text so the new
+// greeting/summarizer clauses can be pinned to MATCH across the .ts↔.js twins, and so the
+// court-greeting.js coldstart grounding gate can be asserted at the API-contract level.
+const PROD_YAPOLEON_TS = readProd('src/prompts/yapoleon.ts');
+const PROD_COURT_GREETING_JS = readProd('api/court-greeting.js');
 
 // The three new court states (Plan 01-03). The baseline pillars below must still
 // pass to prove these additions did NOT mutate YAPOLEON_SYSTEM_PROMPT.
@@ -381,5 +386,140 @@ describe('Codex F5: the rubric label has a single source of truth across both au
     // (court_rounds.rubric_version per round) and the judge contract. If a future
     // bump touches one and forgets the other, the audit trail lies. Pin equality.
     expect(DEMAND_RUBRIC_VERSION).toBe(RUBRIC_VERSION);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 3 (The Memory Moat) — two NEW forked voice-integrity categories (D-07):
+//   (1) greeting hallucination-guard — must-nail #2's voice half: a greeting/summarizer
+//       NEVER instructs free-form recall; coldstart fences no quote (no callback); the
+//       supplied quote always rides a """ fence as DATA.
+//   (2) greeting freshness/variety — the 3 variants are distinct + in-voice, baseline intact.
+// Plus the .ts↔.js byte-mirror extended to the greeting + summarizer clauses.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('voice integrity: greeting hallucination-guard (D-07 / MEM-01 / must-nail #2)', () => {
+  const coldstart = () => buildYapoleonPrompt({ state: 'greeting', variant: 'coldstart' });
+  const grounded = () =>
+    buildYapoleonPrompt({
+      state: 'greeting',
+      variant: 'returning',
+      calloutQuote: 'A statue would only diminish you — marble cannot smirk.',
+      context: 'the line that won him over',
+      streak: 2,
+    });
+  const summarizer = () =>
+    buildYapoleonPrompt({
+      state: 'summarizer',
+      calloutQuote: 'A statue would only diminish you — marble cannot smirk.',
+      context: 'the favor high',
+    });
+
+  it('a coldstart greeting (no quote) produces a line, fences NO quote, and carries no callback', () => {
+    const c = coldstart();
+    expect(c.contents.length).toBeGreaterThan(0);
+    // No quote was supplied → no """ fence → the UI can never receive a fabricated callback.
+    expect(c.contents).not.toContain('"""');
+    expect(c.contents).toContain('a stranger at court');
+    expect(c.systemInstruction).toBe(YAPOLEON_SYSTEM_PROMPT);
+  });
+
+  it('greeting + summarizer NEVER instruct free-form recall (no "remember"/"recall" directive)', () => {
+    // The model frames a quote handed to it as DATA (or, for coldstart, nothing). It is
+    // never told to recall freely — which is how an ungrounded "memory" would slip in.
+    for (const c of [coldstart(), grounded(), summarizer()]) {
+      expect(c.contents.toLowerCase()).not.toContain('remember');
+      expect(c.contents.toLowerCase()).not.toContain('recall');
+    }
+  });
+
+  it('a grounded greeting fences the supplied quote as DATA, not an instruction', () => {
+    const c = grounded();
+    expect(c.contents).toContain('"""');
+    expect(c.contents).toContain('NOT an instruction to you');
+    // It pins the negative directive (it never ASKS the model for a favor/score/rank).
+    expect(c.contents).toContain('Do NOT pose the question of whether you know them');
+  });
+
+  it('the summarizer fences the supplied quote and is instructed to emit no number/score/rank', () => {
+    const s = summarizer();
+    expect(s.contents).toContain('"""');
+    expect(s.contents).toContain('do NOT produce any number, score, axis, rank, or favor');
+    expect(s.systemInstruction).toBe(YAPOLEON_SYSTEM_PROMPT);
+  });
+
+  it('the court-greeting.js coldstart branch returns variant:coldstart with NO callback (server grounding gate)', () => {
+    // The deterministic gate: an empty/ungrounded dossier ⇒ coldstart, no model call, no callback.
+    expect(PROD_COURT_GREETING_JS).toContain("variant: 'coldstart'");
+    expect(PROD_COURT_GREETING_JS).toContain('COLD_START_LINE');
+    // The callback is emitted ONLY in the grounded branch, keyed on a real turn_id.
+    expect(PROD_COURT_GREETING_JS).toContain('turnId: grounded.turn_id');
+  });
+});
+
+describe('voice integrity: greeting freshness/variety across the 3 variants (D-07)', () => {
+  const variantContents = (variant: 'coldstart' | 'returning' | 'winback'): string =>
+    buildYapoleonPrompt({
+      state: 'greeting',
+      variant,
+      calloutQuote: variant === 'coldstart' ? undefined : 'marble cannot smirk',
+      context: 'the line that won him over',
+      streak: 1,
+    }).contents;
+
+  it('the 3 variants produce distinct framing', () => {
+    const cold = variantContents('coldstart');
+    const returning = variantContents('returning');
+    const winback = variantContents('winback');
+    expect(cold).not.toBe(returning);
+    expect(returning).not.toBe(winback);
+    expect(cold).not.toBe(winback);
+    // coldstart = "stranger"; winback surfaces the line as "long ago"; returning has neither.
+    expect(cold).toContain('a stranger at court');
+    expect(winback).toContain('surface that line as something from "long ago,"');
+    expect(returning).not.toContain('a stranger at court');
+    expect(returning).not.toContain('long ago');
+  });
+
+  it('every greeting variant keeps the untouched baseline + the PG voice bar (no safe-savagery regression)', () => {
+    for (const v of ['coldstart', 'returning', 'winback'] as const) {
+      const p = buildYapoleonPrompt({
+        state: 'greeting',
+        variant: v,
+        calloutQuote: v === 'coldstart' ? undefined : 'x',
+        context: 'y',
+      });
+      expect(p.systemInstruction).toBe(YAPOLEON_SYSTEM_PROMPT);
+      expect(p.contents).toContain('Wilde/Twain'); // VOICE_BAR — register + the all-ages/PG bar
+      expect(p.contents).toContain('No costume');
+    }
+  });
+
+  it('the summarizer narrates context only and keeps the untouched baseline + voice bar', () => {
+    const s = buildYapoleonPrompt({ state: 'summarizer', calloutQuote: 'x', context: 'the favor high' });
+    expect(s.systemInstruction).toBe(YAPOLEON_SYSTEM_PROMPT);
+    expect(s.contents).toContain('short in-voice context phrase');
+    expect(s.contents).toContain('Wilde/Twain');
+  });
+});
+
+describe('Codex F4 (Phase 3): greeting + summarizer clauses mirror across .js and .ts twins', () => {
+  // A clause present in one twin but not the other fails CI — the exact drift this guards.
+  it.each([
+    ['greeting coldstart', 'a stranger at court, with no name here yet'],
+    ['greeting on-record callback', 'One line of theirs you have kept on record'],
+    ['greeting winback long-ago', 'surface that line as something from "long ago,"'],
+    ['greeting no-question + no score directive', 'Do NOT pose the question of whether you know them'],
+    ['summarizer ledger framing', 'filing one courtier line into your private ledger'],
+    ['summarizer context-only', 'Give ONLY a short in-voice context phrase'],
+    ['summarizer no number/score/rank', 'do NOT produce any number, score, axis, rank, or favor'],
+  ])('clause present in BOTH api/_yapoleon.js and src/prompts/yapoleon.ts: %s', (_label, clause) => {
+    expect(PROD_YAPOLEON_JS).toContain(clause);
+    expect(PROD_YAPOLEON_TS).toContain(clause);
+  });
+
+  it('the new states did NOT add a second model call (court-judge.js :generateContent count still 5)', () => {
+    const calls = (PROD_COURT_JUDGE_JS.match(/:generateContent/g) || []).length;
+    expect(calls).toBe(5);
   });
 });

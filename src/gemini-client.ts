@@ -120,6 +120,7 @@ function parseJudgeResult(data: unknown): JudgeResult {
 export const judgeReply = async (
   demand: DemandRecord,
   reply: string,
+  priorReplies: string[] = [],
   options?: JudgeFetchOptions,
 ): Promise<JudgeResult> => {
   const requestBody = {
@@ -127,6 +128,9 @@ export const judgeReply = async (
     reply,
     axisWeights: demand.axisWeights,
     rubric_version: demand.rubricVersion,
+    // JUDGE-05: the player's OWN earlier replies this round (server folds the deterministic
+    // near-dup pre-check into the SAME judge call — voice-only, 0 extra model calls).
+    priorReplies,
   };
 
   let delay = 1000;

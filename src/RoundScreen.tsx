@@ -25,6 +25,8 @@ import PendingIndicator from './components/PendingIndicator';
 import ReactionLine from './components/ReactionLine';
 import EndState from './components/EndState';
 import ErrorState from './components/ErrorState';
+import GreetingMoment from './components/GreetingMoment';
+import { fetchGreeting, type GreetingPayload } from './court-dossier';
 import { ensureIdentity, apiFetch } from './court-identity';
 import { selectDailyDemand, type DemandRecord } from './demands';
 import { getDayNumber } from './daily';
@@ -34,6 +36,7 @@ import {
   freshRound,
   resolveLoadedRound,
   reportPayload,
+  transcriptPayload,
   saveRound,
   turnsRemaining,
   type RoundState,
@@ -70,6 +73,12 @@ export default function RoundScreen() {
   const [cardError, setCardError] = useState(false);
   const [toast, setToast] = useState('');
 
+  // 03-02 greeting (MEM-01) — a pre-round prelude beat. `greeting` is null until the
+  // grounded greeting resolves (or stays null on a cold-start/failure → no beat).
+  // `greetingDismissed` flips on continue; once dismissed the existing round flow runs.
+  const [greeting, setGreeting] = useState<GreetingPayload | null>(null);
+  const [greetingDismissed, setGreetingDismissed] = useState(false);
+
   // On mount: mint/reuse the anon identity (01-01), ask the server whether the day
   // is still playable (replay check), then resolve the round (server-authoritative).
   useEffect(() => {
@@ -103,7 +112,17 @@ export default function RoundScreen() {
         // replay still cannot be RECORDED (court-record-round enforces UNIQUE).
       }
       if (cancelled) return;
-      setRound(resolveLoadedRound(day, canPlay));
+      const resolved = resolveLoadedRound(day, canPlay);
+      setRound(resolved);
+
+      // The greeting (MEM-01) is a pure prelude — fetched ONCE, and ONLY for a fresh
+      // playable round (never on a replay-blocked re-open or a resumed mid-round, which
+      // would waste a model call). fetchGreeting resolves to null on a cold-start /
+      // non-200 / offline → no beat: the round opens exactly as it does today.
+      if (resolved.status === 'playing' && resolved.turns.length === 0) {
+        const g = await fetchGreeting();
+        if (!cancelled && g) setGreeting(g);
+      }
     })();
 
     return () => { cancelled = true; };
@@ -192,8 +211,12 @@ export default function RoundScreen() {
         identityReady.current = true;
       }
 
-      // ONE structured judge call → server-derived favorDelta.
-      const result = await judgeReply(demand, text);
+      // ONE structured judge call → server-derived favorDelta. Pass the player's OWN
+      // earlier replies THIS round (round.turns is the pre-turn state — the current reply
+      // is not in it yet) so the judge's deterministic near-dup pre-check (JUDGE-05) has
+      // real prior text to compare against. The JUDGE-07 shape signal needs no client
+      // change — the judge reads shape_notes server-side from the dossier.
+      const result = await judgeReply(demand, text, round.turns.map((t) => t.reply));
 
       // Advance the round state machine (clamp + win/lose transitions).
       const next = applyTurn(round, text, result);
@@ -206,7 +229,10 @@ export default function RoundScreen() {
         await apiFetch('/api/court-record-round', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(reportPayload(next, demand.rubricVersion)),
+          // The per-turn transcript (MEM-02) rides alongside the counters so the server
+          // can persist court_turns + summarize the dossier on the terminal turn. Built
+          // from `next` so it includes the turn just applied.
+          body: JSON.stringify({ ...reportPayload(next, demand.rubricVersion), turns: transcriptPayload(next) }),
         });
       } catch { /* the meter still moves; the replay-lock row is server-authoritative */ }
 
@@ -230,6 +256,12 @@ export default function RoundScreen() {
   return (
     <div className="game-container">
       <main style={mainStyle}>
+        {/* Pre-round greeting takeover (03-02): shown ONCE, only on a fresh playable round,
+            BEFORE the demand. It never touches demand/axisWeights/initial favor (favor still
+            opens 0/100). On continue it dismisses and the existing round flow runs unchanged. */}
+        {greeting && !greetingDismissed && round.status === 'playing' && round.turns.length === 0 ? (
+          <GreetingMoment greeting={greeting} onContinue={() => setGreetingDismissed(true)} />
+        ) : (
         <section style={columnStyle}>
           {/* Tertiary: the day's framed demand (read once, then recedes). */}
           <DemandFraming sceneText={demand.scene} />
@@ -306,6 +338,7 @@ export default function RoundScreen() {
             </>
           )}
         </section>
+        )}
       </main>
     </div>
   );
