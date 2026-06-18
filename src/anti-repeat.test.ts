@@ -46,6 +46,9 @@ const NEAR_DUP_PAIRS: Array<[string, string]> = [
   // near-verbatim with filler words
   ['You are, quite simply, the greatest mind the court has ever known.',
    'You are simply the greatest mind this court has ever known.'],
+  // padded resubmission (03-04 extension — strengthens the reworded-repeat coverage)
+  ['Spare the marble; spend it on a mirror — you would get far more use of it.',
+   'Honestly, spare the marble. Spend it on a mirror; you would get more use.'],
 ];
 
 const DISTINCT_PAIRS: Array<[string, string]> = [
@@ -56,6 +59,12 @@ const DISTINCT_PAIRS: Array<[string, string]> = [
   // the hardest false-positive case: both flattery-shaped, yet distinct
   ['No monument could flatter a man the gods already over-favored.',
    'Your reflection has done more honest worship than any sculptor could.'],
+  // 03-04 extensions — distinct answers that reuse the demand's vocabulary (statue/marble),
+  // the realistic worst case for a false positive. Must still pass (< threshold).
+  ['Marble cannot hold your wit, Sire.',
+   'Build it, and the pigeons will finally have a perch worthy of their opinions.'],
+  ['Stone is too dull to contain you.',
+   'Erect it facing the throne, so you may at last be judged by your equal.'],
 ];
 
 describe('anti-repeat threshold calibration (JUDGE-05)', () => {
