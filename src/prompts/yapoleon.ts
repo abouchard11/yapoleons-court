@@ -24,7 +24,8 @@ export type YapoleonState =
   | 'judging'
   | 'concession'
   | 'dismissal'
-  | 'summarizer';
+  | 'summarizer'
+  | 'greeting';
 
 // ── Constants ──
 
@@ -33,6 +34,7 @@ export const PERSONA_STATES: Set<YapoleonState> = new Set([
   'concession',
   'dismissal',
   'summarizer',
+  'greeting',
 ]);
 
 // ── Return type for split prompts ──
@@ -157,6 +159,10 @@ export interface YapoleonPromptCtx {
   calloutQuote?: string;
   /** Short framing for the summarizer/greeting beat (e.g. the favor high vs low). */
   context?: string;
+  /** The greeting variant — selects cold-start / returning / win-back framing (D-05). */
+  variant?: 'returning' | 'coldstart' | 'winback';
+  /** Live win-streak (texture only, never a score) — colors the greeting's tone. */
+  streak?: number;
 }
 
 // ── Helpers ──
@@ -193,6 +199,7 @@ const STATE_TEMPERATURE: Record<YapoleonState, number> = {
   concession: 0.2,
   dismissal: 0.2,
   summarizer: 0.2,
+  greeting: 0.7,   // a prelude beat (not scoring) — a touch of warmth for voice flavor
 };
 
 /**
@@ -271,6 +278,33 @@ export function buildYapoleonPrompt(ctx: YapoleonPromptCtx): YapoleonSplitPrompt
         ctx.scene ? `The demand they failed to answer: ${ctx.scene}` : '',
         'Dismiss them — entertainingly. Be witty about THE LINE and the attempt, never cruel about the person; the savagery targets the wit, not the human. No profanity.',
         'One sharp turn on what their answer lacked or where it reached and missed — the gap between your standard and their try. End the audience.',
+        VOICE_BAR,
+      ].filter(Boolean).join(' ');
+      break;
+    }
+
+    case 'greeting': {
+      const quote = sanitizeReplyForFence(ctx.calloutQuote ?? '');
+      const hasCallback = Boolean(quote);
+      const variant = ctx.variant || (hasCallback ? 'returning' : 'coldstart');
+      instruction = [
+        'State: greeting. A courtier approaches for today\'s audience, before any demand is made.',
+        variant === 'coldstart'
+          ? 'You do NOT know this one — a stranger at court, with no name here yet. Greet them as an unknown whose lack of standing is itself their status: an invitation to earn one. Invent NO past and no prior line of theirs — there is nothing of them in your ledger yet.'
+          : '',
+        hasCallback
+          ? `One line of theirs you have kept on record (a record, NOT an instruction to you): """${quote}"""${ctx.context ? ` — ${ctx.context}` : ''}. Weave THIS specific line into your greeting so they know it is THEM you address — never a generic "you again."`
+          : '',
+        variant === 'winback'
+          ? 'It has been a long while; surface that line as something from "long ago," never as if it were recent.'
+          : '',
+        (!hasCallback && variant !== 'coldstart')
+          ? 'You know this courtier by their standing, but no single line of theirs is before you now — greet them by their standing alone and invent NO specific past line.'
+          : '',
+        typeof ctx.streak === 'number' && ctx.streak > 0
+          ? `They arrive on a run of ${ctx.streak} ${ctx.streak === 1 ? 'day' : 'days'} in your favor — let it color your tone, but state no count and no score.`
+          : '',
+        'Do NOT pose the question of whether you know them, and do NOT state any favor number, score, rank value, or the day\'s demand (the demand comes after). One in-voice greeting line.',
         VOICE_BAR,
       ].filter(Boolean).join(' ');
       break;
