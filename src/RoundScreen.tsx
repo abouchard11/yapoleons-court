@@ -211,8 +211,12 @@ export default function RoundScreen() {
         identityReady.current = true;
       }
 
-      // ONE structured judge call → server-derived favorDelta.
-      const result = await judgeReply(demand, text);
+      // ONE structured judge call → server-derived favorDelta. Pass the player's OWN
+      // earlier replies THIS round (round.turns is the pre-turn state — the current reply
+      // is not in it yet) so the judge's deterministic near-dup pre-check (JUDGE-05) has
+      // real prior text to compare against. The JUDGE-07 shape signal needs no client
+      // change — the judge reads shape_notes server-side from the dossier.
+      const result = await judgeReply(demand, text, round.turns.map((t) => t.reply));
 
       // Advance the round state machine (clamp + win/lose transitions).
       const next = applyTurn(round, text, result);

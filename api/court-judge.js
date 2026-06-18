@@ -27,10 +27,13 @@
 // _expressions / _content-filter imports (Wordle-specific; not in this repo).
 
 import { timingSafeEqual } from 'node:crypto';
+import { createClient } from '@supabase/supabase-js';
 import {
   buildRequestHash,
   getRuntimeMeta,
   recordYapoleonEvent,
+  trigramJaccardSimilarity,
+  salientTokens,
 } from './_yapoleon-observability.js';
 import { originAllowed, setCorsHeaders } from './_cors.js';
 import { getClientIp, isIpFloodLimited, isUserRateLimited } from './_ratelimit.js';
@@ -81,6 +84,66 @@ function deriveFavorDelta(axisScores, dayWeights) {
     0,
   );
   return mapToBand(weighted);
+}
+
+// ── Phase 3 (JUDGE-05 / JUDGE-07): own-history anti-repeat + rhetorical-shape decay ──
+// BOTH signals are VOICE-ONLY (the D-01 HARD INVARIANT): each appends an in-voice directive
+// to the SINGLE existing judge prompt (0 extra model calls) and NEVER enters deriveFavorDelta,
+// the rubric, the axis weights, or the threshold. A repeat/mold scores lower ONLY via the
+// shared rubric (a stale line is naturally low on wit/specificity) + that day's weight-shift,
+// identical for every player. The deterministic pre-checks reuse the in-repo primitives
+// (trigramJaccardSimilarity / salientTokens) — no embedding or string-distance dependency.
+const NEAR_DUP_THRESHOLD = 0.6;       // JUDGE-05 own-history near-dup; CALIBRATED in Plan 03-03 Task 3
+const SHAPE_OVERLAP_THRESHOLD = 0.5;  // JUDGE-07 recurring-shape overlap vs the dossier's shape_notes
+const MAX_PRIOR = 6;                  // bound priorReplies[] (V5 input bound; the 3-turn cap makes >3 unusual)
+
+// JUDGE-05: true when `reply` is a near-duplicate of any of the player's OWN earlier replies.
+function detectOwnRepeat(reply, priorReplies = []) {
+  let best = 0;
+  for (const prior of priorReplies) best = Math.max(best, trigramJaccardSimilarity(reply, prior));
+  return best >= NEAR_DUP_THRESHOLD;
+}
+
+// JUDGE-07: true when the reply's salient-token shape overlaps the player's stored
+// rhetorical-shape signature (court_dossier.shape_notes — the deduplicated salientTokens set
+// the 03-01 summarizer built across prior rounds). Empty/absent shape_notes ⇒ false.
+function detectRecurringShape(reply, shapeNotes) {
+  if (!Array.isArray(shapeNotes) || shapeNotes.length === 0) return false;
+  const current = salientTokens(reply);
+  if (current.size === 0) return false;
+  const stored = new Set(shapeNotes);
+  let shared = 0;
+  for (const tok of current) if (stored.has(tok)) shared += 1;
+  return shared / current.size >= SHAPE_OVERLAP_THRESHOLD;
+}
+
+// Lazy service-role client — the judge reads court_dossier.shape_notes (read-only) for the
+// JUDGE-07 shape pre-check, scoped STRICTLY to the bearer-resolved player_id (anti-IDOR).
+let _sb = null;
+function getSupabaseClient() {
+  if (_sb) return _sb;
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) return null;
+  _sb = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY,
+    { auth: { autoRefreshToken: false, persistSession: false } },
+  );
+  return _sb;
+}
+
+// Read this player's stored rhetorical-shape signature (read-only; degrades to [] on ANY
+// failure so the shape pre-check can never block or delay-fail the judge call).
+async function readShapeNotes(sb, token) {
+  if (!sb || !token) return [];
+  try {
+    const { data: player } = await sb.from('court_players').select('id').eq('token', token).maybeSingle();
+    if (!player) return [];
+    const { data: dossier } = await sb
+      .from('court_dossier').select('shape_notes').eq('player_id', player.id).maybeSingle();
+    return dossier && Array.isArray(dossier.shape_notes) ? dossier.shape_notes : [];
+  } catch {
+    return [];
+  }
 }
 
 // ── Request guards / limits ──
@@ -288,6 +351,28 @@ const JUDGE_SCORING_DIRECTIVE = [
   'never in the reaction line.',
 ].join('\n');
 
+// Appended to the SAME judge prompt (0 extra model calls) when a deterministic pre-check
+// fires. VOICE-ONLY (D-01): each lets the model note the repeat IN VOICE and judge it on
+// the SAME shared rubric — NEITHER adds an out-of-rubric favor penalty, and neither flag
+// is ever passed to deriveFavorDelta (a stale line is simply low on novelty/wit on merit).
+const OWN_REPEAT_DIRECTIVE = [
+  '',
+  'Own-history note: this courtier has already given you this same line (or a near-duplicate of it) earlier.',
+  'In your one-line reaction, note IN VOICE that you have heard this one from THEM before — a trick performed',
+  'twice is not wit ("I have heard that one — from you"). Judge it on the SAME shared rubric as every reply: a',
+  'stale repeat simply has little novelty, so it earns little on wit and specificity on its own merits. Add NO',
+  'special or extra penalty beyond what the shared rubric and the day\'s weights already produce.',
+].join('\n');
+
+const RECURRING_SHAPE_DIRECTIVE = [
+  '',
+  'Recurring-shape note: this courtier keeps reaching for the same rhetorical shape — the same move dressed up',
+  'again. In your reaction, note IN VOICE that the same trick twice does not impress you ("The same trick',
+  'twice? I am not a goldfish."). Again judge on the SAME shared rubric (a repeated mold reads as less inventive',
+  '— lower wit and specificity on merit); add NO out-of-rubric penalty. The day\'s axis-weight shift remains',
+  'the primary structural defense against any single winning template.',
+].join('\n');
+
 // Build the judge prompt (system_instruction + reaction-framed contents) from the
 // canonical `judging` voice state. The player's reply rides `contents` as DATA
 // being judged — NEVER concatenated into system_instruction (free injection
@@ -361,6 +446,10 @@ export default async function handler(req, res) {
     sendError(res, 400, requestId, 'invalid_weights', 'Missing or invalid "axisWeights"');
     return;
   }
+  // Phase 3 (JUDGE-05): the player's OWN earlier replies this round — bounded (V5).
+  const priorReplies = Array.isArray(body.priorReplies)
+    ? body.priorReplies.filter((r) => typeof r === 'string').slice(0, MAX_PRIOR).map((r) => r.slice(0, MAX_REPLY))
+    : [];
 
   // Build the canonical `judging`-voice prompt once (system_instruction = the
   // untouched baseline; contents = reaction framing + scoring directive).
@@ -474,8 +563,24 @@ export default async function handler(req, res) {
   // documented-vs-live discrepancy RESEARCH §C flagged A1 to retire early; the smoke
   // test retired it. Re-evaluate `responseFormat` only if/when the project migrates
   // off :generateContent to the Interactions endpoint.
+  // ── Phase 3: fold own-history anti-repeat (JUDGE-05) + rhetorical-shape decay (JUDGE-07)
+  //    into the SAME prompt — 0 extra model calls, voice-only (D-01). The own-history check
+  //    is deterministic over the bounded priorReplies (no DB). The shape check reads this
+  //    player's stored shape_notes (read-only, after the rate-limit gate) and degrades to []
+  //    on any failure. Neither flag is ever passed to deriveFavorDelta. ──
+  const repeated = detectOwnRepeat(reply, priorReplies);
+  const shapeNotes = await readShapeNotes(getSupabaseClient(), bearerToken);
+  const recurringShape = detectRecurringShape(reply, shapeNotes);
+  const antiRepeatDirectives = [
+    repeated ? OWN_REPEAT_DIRECTIVE : '',
+    recurringShape ? RECURRING_SHAPE_DIRECTIVE : '',
+  ].filter(Boolean).join('\n');
+  const judgeContents = antiRepeatDirectives
+    ? judgePrompt.contents + '\n' + antiRepeatDirectives
+    : judgePrompt.contents;
+
   const geminiBody = {
-    contents: [{ parts: [{ text: judgePrompt.contents }] }],
+    contents: [{ parts: [{ text: judgeContents }] }],
     system_instruction: { parts: [{ text: judgePrompt.systemInstruction }] },
     generationConfig: {
       responseMimeType: 'application/json',
