@@ -34,6 +34,7 @@ import {
   freshRound,
   resolveLoadedRound,
   reportPayload,
+  transcriptPayload,
   saveRound,
   turnsRemaining,
   type RoundState,
@@ -206,7 +207,10 @@ export default function RoundScreen() {
         await apiFetch('/api/court-record-round', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(reportPayload(next, demand.rubricVersion)),
+          // The per-turn transcript (MEM-02) rides alongside the counters so the server
+          // can persist court_turns + summarize the dossier on the terminal turn. Built
+          // from `next` so it includes the turn just applied.
+          body: JSON.stringify({ ...reportPayload(next, demand.rubricVersion), turns: transcriptPayload(next) }),
         });
       } catch { /* the meter still moves; the replay-lock row is server-authoritative */ }
 
