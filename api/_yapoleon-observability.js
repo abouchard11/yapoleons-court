@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
+import { waitUntil } from '@vercel/functions';
 
 const EVENTS_TABLE = 'yapoleon_observability_events';
 const MAX_SAMPLE_LENGTH = 280;
@@ -11,10 +12,6 @@ function getSupabaseClient() {
     process.env.SUPABASE_SERVICE_ROLE_KEY,
     { auth: { autoRefreshToken: false, persistSession: false } },
   );
-}
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export function getRuntimeMeta() {
@@ -413,7 +410,7 @@ export function buildInGameRepetitionReport(events, maxItems = 5) {
   };
 }
 
-export async function recordYapoleonEvent(payload, timeoutMs = 250) {
+export async function recordYapoleonEvent(payload) {
   const sb = getSupabaseClient();
   if (!sb) return { ok: false, skipped: 'missing_supabase_env' };
 
@@ -474,19 +471,24 @@ export async function recordYapoleonEvent(payload, timeoutMs = 250) {
     }
   }
 
-  const insertPromise = sb.from(EVENTS_TABLE).insert(row);
-  const timeoutPromise = sleep(timeoutMs).then(() => ({ timeout: true }));
-  const result = await Promise.race([insertPromise, timeoutPromise]);
+  // Build an insert promise that NEVER rejects (errors are folded into the resolved
+  // value) so neither the top-level waitUntil below nor a caller's `void`/`await`
+  // can ever throw into a gameplay response.
+  const insertPromise = (async () => {
+    try {
+      const { error } = await sb.from(EVENTS_TABLE).insert(row);
+      return error ? { ok: false, skipped: 'insert_failed', detail: error.message } : { ok: true };
+    } catch (err) {
+      return { ok: false, skipped: 'insert_threw', detail: String(err?.message || err) };
+    }
+  })();
 
-  if (result && result.timeout) {
-    return { ok: false, skipped: 'timeout' };
-  }
-
-  if (result?.error) {
-    return { ok: false, skipped: 'insert_failed', detail: result.error.message };
-  }
-
-  return { ok: true };
+  // Schedule the insert on the request's post-response lifetime so a slow (cold-tail)
+  // Supabase insert finishes instead of being killed when the response returns, then
+  // RETURN the promise so the summarizer (which awaits inside waitUntil(buildDossier))
+  // completes its insert inside that already-extended lifetime.
+  try { waitUntil(insertPromise); } catch { /* no request context (tests/CLI) — promise still runs */ }
+  return insertPromise;
 }
 
 export async function fetchYapoleonEventsSince(startIso, maxRows = 50000) {

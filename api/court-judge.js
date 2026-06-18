@@ -470,7 +470,7 @@ export default async function handler(req, res) {
     upstreamAttempts = null,
   }) {
     try {
-      await recordYapoleonEvent({
+      void recordYapoleonEvent({
         createdAt: new Date().toISOString(),
         requestId: requestId || null,
         requestHash,

@@ -229,7 +229,7 @@ export default async function handler(req, res) {
 
     // Observable per-round cost ledger (COST-01): the greeting logs mode:'greeting'.
     try {
-      await recordYapoleonEvent({
+      void recordYapoleonEvent({
         createdAt: new Date().toISOString(),
         deploymentId: runtimeMeta.deploymentId,
         commitSha: runtimeMeta.commitSha,
