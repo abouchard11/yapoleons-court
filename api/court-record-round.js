@@ -299,7 +299,10 @@ export default async function handler(req, res) {
       .map((t, i) => ({
         player_id: player.id,
         day,
-        turn_index: Number.isFinite(t?.turn_index) ? Math.trunc(t.turn_index) : i,
+        // turn_index is SERVER-ASSIGNED from the bounded array position (i), NEVER the
+        // client's value — this caps court_turns at MAX_TURNS rows per (player, day) and
+        // keeps re-record a true no-op (a client cannot mint extra rows with fresh indexes).
+        turn_index: i,
         reply: sanitizeText(t?.reply, 500),
         reaction: sanitizeText(t?.reaction, 500),
         favor_delta: Number.isFinite(t?.favor_delta) ? Math.trunc(t.favor_delta) : 0,

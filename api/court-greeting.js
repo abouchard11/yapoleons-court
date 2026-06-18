@@ -178,10 +178,19 @@ export default async function handler(req, res) {
     // its turn_id. No such row ⇒ cold-start, NO callback, NO model call (and Round 1's
     // dossier gets seeded by court-record-round, so a callback can land on a later day).
     const highlights = Array.isArray(dossier?.highlights) ? dossier.highlights : [];
-    const grounded = highlights.find(
+    let grounded = highlights.find(
       (h) => h && typeof h.quote === 'string' && h.quote.trim()
         && typeof h.turn_id === 'string' && h.turn_id,
     );
+    // Provenance verification (hallucination guard, strengthened): the highlight's turn_id
+    // MUST point to a real court_turns row for THIS player. A callback can exist ONLY when
+    // the transcript ROW exists — not merely when the dossier CLAIMS it — so a stale/pruned/
+    // corrupted dossier can never surface an ungrounded "memory" (it degrades to cold-start).
+    if (grounded) {
+      const { data: turnRow } = await sb
+        .from('court_turns').select('id').eq('id', grounded.turn_id).eq('player_id', player.id).maybeSingle();
+      if (!turnRow) grounded = null;
+    }
     if (!dossier || !grounded) {
       res.status(200).json({ variant: 'coldstart', line: COLD_START_LINE });
       return;
