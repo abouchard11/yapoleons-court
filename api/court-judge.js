@@ -448,7 +448,9 @@ export default async function handler(req, res) {
   }
   // Phase 3 (JUDGE-05): the player's OWN earlier replies this round — bounded (V5).
   const priorReplies = Array.isArray(body.priorReplies)
-    ? body.priorReplies.filter((r) => typeof r === 'string').slice(0, MAX_PRIOR).map((r) => r.slice(0, MAX_REPLY))
+    // Slice BEFORE filter/map so a huge client array can't force O(n) work/allocation
+    // before the cap applies (the cap is the DoS bound, not the post-filter length).
+    ? body.priorReplies.slice(0, MAX_PRIOR).filter((r) => typeof r === 'string').map((r) => r.slice(0, MAX_REPLY))
     : [];
 
   // Build the canonical `judging`-voice prompt once (system_instruction = the

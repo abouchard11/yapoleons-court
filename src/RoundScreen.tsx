@@ -26,8 +26,10 @@ import ReactionLine from './components/ReactionLine';
 import EndState from './components/EndState';
 import ErrorState from './components/ErrorState';
 import GreetingMoment from './components/GreetingMoment';
+import OnboardingCard from './components/OnboardingCard';
 import { fetchGreeting, type GreetingPayload } from './court-dossier';
 import { ensureIdentity, apiFetch } from './court-identity';
+import { StorageAdapter } from './storage-adapter';
 import { selectDailyDemand, type DemandRecord } from './demands';
 import { getDayNumber } from './daily';
 import { judgeReply } from './gemini-client';
@@ -48,6 +50,10 @@ import { shareVerdict, buildVerdictShareParts, type VerdictCardData } from './sh
 // lost) is the durable truth; `uiPhase` tracks the transient in-flight/reveal/error
 // beats that are not persisted.
 type UiPhase = 'idle' | 'pending' | 'revealed' | 'error';
+
+// First-run flag (StorageAdapter / KNOWN_KEYS): once set, the "how to play" card no
+// longer auto-shows; the persistent "?" reopens it on demand.
+const ONBOARDING_KEY = 'court.onboarding.seen.v1';
 
 // Static in-voice fallback for an end-state with no live judge reaction available
 // (a server-loaded, replay-blocked round — the per-turn reactions are not persisted
@@ -78,6 +84,14 @@ export default function RoundScreen() {
   // `greetingDismissed` flips on continue; once dismissed the existing round flow runs.
   const [greeting, setGreeting] = useState<GreetingPayload | null>(null);
   const [greetingDismissed, setGreetingDismissed] = useState(false);
+
+  // First-run onboarding: the "how to play" card auto-shows once (no flag yet), then is
+  // reopenable from the persistent "?" affordance. The lazy initializers read the flag
+  // synchronously (StorageAdapter.init() already ran in main.tsx before mount).
+  const [onboardingOpen, setOnboardingOpen] = useState<boolean>(() => !StorageAdapter.getItem(ONBOARDING_KEY));
+  const [onboardingMode, setOnboardingMode] = useState<'first-run' | 'reopened'>(
+    () => (StorageAdapter.getItem(ONBOARDING_KEY) ? 'reopened' : 'first-run'),
+  );
 
   // On mount: mint/reuse the anon identity (01-01), ask the server whether the day
   // is still playable (replay check), then resolve the round (server-authoritative).
@@ -127,6 +141,24 @@ export default function RoundScreen() {
 
     return () => { cancelled = true; };
   }, []);
+
+  const dismissOnboarding = () => {
+    StorageAdapter.setItem(ONBOARDING_KEY, '1');
+    setOnboardingOpen(false);
+  };
+  const openOnboarding = () => { setOnboardingMode('reopened'); setOnboardingOpen(true); };
+
+  // First-run onboarding takes over before anything else — even before the round
+  // resolves — so a newcomer sees how to play, not a loading veil or an opaque demand.
+  if (onboardingOpen) {
+    return (
+      <div className="game-container">
+        <main style={mainStyle}>
+          <OnboardingCard onDismiss={dismissOnboarding} mode={onboardingMode} />
+        </main>
+      </div>
+    );
+  }
 
   // First paint, before the round resolves: the "considers…" beat as a load veil.
   if (!demand || !round) {
@@ -340,6 +372,9 @@ export default function RoundScreen() {
         </section>
         )}
       </main>
+      {/* Persistent "?" — reopens the how-to-play card any time (the operator-chosen
+          first-run-card + persistent-help affordance). Quiet, top-right, out of the flow. */}
+      <HelpButton onClick={openOnboarding} />
     </div>
   );
 }
@@ -377,6 +412,41 @@ const toastStyle: React.CSSProperties = {
   margin: 0,
   textAlign: 'center',
 };
+
+// The persistent "?" help affordance — a quiet, fixed top-right circle that reopens the
+// how-to-play card. Out of the content flow (fixed), respects the safe-area inset, ≥44px
+// hit area. Navy outline on the cream canvas; never competes with the favor meter.
+function HelpButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label="How to play"
+      style={{
+        position: 'fixed',
+        top: 'calc(env(safe-area-inset-top, 0px) + 12px)',
+        right: 'calc(env(safe-area-inset-right, 0px) + 12px)',
+        width: '44px',
+        height: '44px',
+        borderRadius: '50%',
+        border: '1.5px solid rgba(27, 42, 74, 0.45)',
+        backgroundColor: 'var(--yap-cream)',
+        color: 'var(--yap-navy)',
+        fontFamily: '"Bricolage Grotesque", system-ui, sans-serif',
+        fontSize: '18px',
+        fontWeight: 700,
+        lineHeight: 1,
+        cursor: 'pointer',
+        zIndex: 20,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      ?
+    </button>
+  );
+}
 
 // The card-generation error state (02-06; UI-SPEC Copywriting Contract "Error state
 // (card generation fails)"). Distinct copy from the judge-failure ErrorState.tsx — the

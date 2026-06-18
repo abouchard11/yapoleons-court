@@ -9,6 +9,7 @@ export const KNOWN_KEYS = [
   'court.identity.token',
   'court.round.v1',
   'court.appearance',
+  'court.onboarding.seen.v1',
 ] as const;
 
 const cache = new Map<string, string | null>();
