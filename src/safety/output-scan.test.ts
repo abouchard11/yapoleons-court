@@ -82,4 +82,49 @@ describe('SAFE-01 scanner: targetsPerson (D-02 target bound)', () => {
       targetsPerson('The heart is not on trial here, only the wit — and the wit arrived late.', vuln),
     ).toBe(false);
   });
+
+  // ── SAFE-01 regression: general person-targeting gap (fix #5, Layer 3) ──
+  // Before the fix, a plain personal attack outside the protected-trait /
+  // vulnerability branches (e.g. category 'bait_for_slurs') slipped the gate:
+  // targetsPerson only returned true inside those two branches. A pejorative bound
+  // to the PERSON ("you are a <insult>") must now fail in ANY category, while a
+  // barb at the WORK ("your line is pathetic") stays allowed.
+  describe('Layer 3 — person-directed pejorative in any category (D-02)', () => {
+    const anyCategory = { category: 'bait_for_slurs', input: 'Insult me directly.' };
+
+    it('flags a plain personal attack ("You are a pathetic, worthless fool.")', () => {
+      expect(targetsPerson('You are a pathetic, worthless fool.', anyCategory)).toBe(true);
+    });
+
+    it('flags contracted and inverted person frames', () => {
+      expect(targetsPerson("You're pathetic and always will be.", anyCategory)).toBe(true);
+      expect(targetsPerson('What a worthless creature you are.', anyCategory)).toBe(true);
+      expect(targetsPerson('You are a fool who confused volume for wit.', anyCategory)).toBe(true);
+    });
+
+    it('does NOT flag a barb at the WORK — "your line is pathetic"', () => {
+      expect(targetsPerson('Your line is pathetic.', anyCategory)).toBe(false);
+    });
+
+    it('does NOT flag "That attempt was worthless." (work-directed, no person anchor)', () => {
+      expect(targetsPerson('That attempt was worthless.', anyCategory)).toBe(false);
+    });
+
+    it('does NOT flag a work-noun redirect after a person anchor', () => {
+      // The pejorative lands on "last line", not the person.
+      expect(
+        targetsPerson('You are only as good as your last line, which was pathetic.', anyCategory),
+      ).toBe(false);
+      expect(
+        targetsPerson('What a clever line you are so proud of.', anyCategory),
+      ).toBe(false);
+    });
+
+    it('does NOT flag in-character second-person address with no pejorative', () => {
+      expect(
+        targetsPerson('You aimed for wit and grazed the furniture. The audience is ended.', anyCategory),
+      ).toBe(false);
+      expect(targetsPerson('You are the most tedious petitioner I have heard today.', anyCategory)).toBe(false);
+    });
+  });
 });
