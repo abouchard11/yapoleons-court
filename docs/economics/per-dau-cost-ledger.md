@@ -102,3 +102,72 @@ node scripts/cost-ledger.mjs --json     # machine-readable (for a dashboard/CI c
 ```
 
 ---
+
+## 5. Degradation path (COST-04)
+
+**The problem:** a daily AI game with an unbounded per-DAU spend is one viral day from a shutdown. COST-04 ships a **live, testable** safety valve so a spike degrades **gracefully** (cheaper, still-playable rounds) instead of silently blowing the cost model. M1 ships the **manual** path; auto-triggers are deferred (see §5.4, D-10).
+
+### 5.1 The lever ORDER (D-09 — cheapest quality-hit first)
+
+D-09 specifies degrading in order of least→most player-visible quality loss:
+
+1. ~~**Shed the optional "what swayed him" reveal**~~ — **DOES NOT EXIST in M1. See §5.2.**
+2. **Cached generic in-voice reaction** — the primary live lever (`DEGRADE_MODE` branch). §5.3.
+3. **Cap / queue concurrent rounds** — the app-level concurrency damper. §5.3.
+
+### 5.2 Lever (1) is ABSENT in M1 — the reveal is folded into the one judge call
+
+The D-09 lever list names "shed the optional 'what swayed him' reveal" as the cheapest degradation. **That lever does not exist in this codebase.** Verified by reading the render path:
+
+- `src/share.ts` builds the share card from `heroLine` / `concessionLine` / `metaLine` — all derived from the **single judge call's `reaction`** field.
+- `src/RoundScreen.tsx` `handleShare` renders that same single reaction; there is **no separate "what swayed him" model call** to shed.
+
+The locked design floated an *optional* separate reveal call (Bet #3, design line 174) as a *possible* lever, but **M1 folded the reveal into the one judge call** (the reaction already names what swayed him — that IS the teaching moment, at no extra call). So there is nothing to "shed": dropping it would mean dropping the judge call itself, which the cached-reaction lever (§5.3) already does more gracefully.
+
+**Net:** the M1 live levers are (2) cached-reaction + (3) concurrency cap. This is not a gap — it is the one-call economy working as designed (must-nail #3: one structured judge call per turn).
+
+### 5.3 The M1 live levers (both = ZERO model calls, still-playable)
+
+**(a) Cached generic in-voice reaction — `DEGRADE_MODE` (the primary lever).**
+- Set `DEGRADE_MODE=1` (Vercel env). The judge (`api/court-judge.js`) short-circuits **after** the moderation pre-filter and **before** the model loop, serving a fixed in-voice `CACHED_REACTION` with **zero** model calls.
+- **The round stays playable and coherent:** `favorDelta` is still derived server-side by `deriveFavorDelta` from neutral axis scores — the meter moves, the HARD INVARIANT holds (no cost/degrade signal enters the rubric or threshold), and the response is a valid `JudgeResult`.
+- The cached line passes the SAFE-01 output bound (no slur/strong profanity; targets no one; names no specific player reply) — asserted in `api/court-judge.degrade.test.js`.
+- Read at **request time**, so toggling the Vercel env takes effect immediately (no redeploy).
+
+**(b) App-level concurrency damper — `MAX_CONCURRENT_JUDGE` (default 40).**
+- An in-process counter of in-flight judge requests. Over the threshold, a request takes the **same** cached-reaction path (0 model calls) instead of calling the model.
+- **Best-effort, single-instance** (accepted imperfect): Vercel **Fluid Compute** runs multiple requests per instance and auto-scales concurrency to ~30k (Hobby/Pro) — there is **no native per-project concurrency dial**. The counter is a real cost damper under a spike on a single warm instance, not a global cap.
+- The counter increments before the model section and decrements in a `finally`, so every exit path (success, parse error, upstream error, exception) releases the slot.
+
+### 5.4 The account-level hard stop — Vercel Spend Management (the real kill switch)
+
+The app-level damper is per-instance and best-effort. The **durable** backstop is **Vercel Spend Management** (Dashboard → Settings → Billing → Spend Management):
+
+- Set a **$ threshold**; Vercel notifies at **50% / 75% / 100%**.
+- At **100%** it can **pause production deployments** (visitors get `503 DEPLOYMENT_PAUSED`) or fire a **webhook**. This is the account-level cost cap the in-process counter cannot fully guarantee.
+- **Recommended M1 threshold: ~$50/month.** Rationale: the projected M1 spend (per §3, ~$0.075/DAU/day ceiling × a small early DAU) is far below $50/mo, so $50 is comfortable headroom that still catches a genuine runaway (a denial-of-wallet spike or a pricing surprise) within a day. Raise it as real DAU grows; the ledger (`scripts/cost-ledger.mjs`) tells you the real monthly run-rate to size it against.
+- **Caveat:** Vercel checks spend every few minutes, so some overspend accrues past the line — it is a hard stop, not a hair-trigger. Configure it in the dashboard (it is not a repo env var).
+
+### 5.5 Auto-triggers are POST-LAUNCH (D-10)
+
+M1 ships the **manual** force-degrade flag + the concurrency damper so COST-04's path **exists and is testable now**. Automatic degradation (auto-detect a spike and auto-shed) is **deferred to post-launch (D-10)**. All the signals it needs are **already tracked** in `yapoleon_observability_events`, so wiring it later is additive, not a schema change:
+
+| Auto-trigger (post-launch) | Obs column that feeds it | How it would hook in |
+|----------------------------|--------------------------|----------------------|
+| Rate-limit / quota spike | `is_rate_limited_429` (BOOLEAN) | A rolling count of 429s over a window flips `DEGRADE_MODE`-equivalent behavior on. |
+| Latency degradation | `latency_ms` (INTEGER) | A p95 latency over a ceiling routes new requests to the cached path. |
+| Spend overrun | (Vercel Spend Management webhook) + the ledger's per-DAU $ | The 50/75% webhook (or a scheduled `cost-ledger.mjs --json` check) trips degrade before the 100% pause. |
+
+Until then, the operator flips `DEGRADE_MODE=1` manually when an alert fires, and Spend Management is the automatic account-level pause.
+
+### 5.6 Reconciliation with ROADMAP Phase 4 success criterion #3
+
+ROADMAP Phase 4 **success criterion #3** requires: *"a degradation/fallback path is live under load — a manual force-degrade flag serving a cached generic in-voice reaction + an app-level concurrency cap, backstopped by Vercel Spend Management."* It also carries the D-10 note that *"the 'shed the optional what-swayed-him reveal' lever does NOT exist in M1."*
+
+**This section satisfies that criterion:**
+- ✅ Manual force-degrade flag serving a cached in-voice reaction — `DEGRADE_MODE` (§5.3a).
+- ✅ App-level concurrency cap — `MAX_CONCURRENT_JUDGE` (§5.3b).
+- ✅ Backstopped by Vercel Spend Management — §5.4 (recommended ~$50/mo).
+- ✅ The **"shed the optional reveal" lever is reconciled as NOT APPLICABLE in M1** (§5.2): the reveal is folded into the single judge call, so it is not a separable lever — the criterion is met by cached-reaction + concurrency cap + Spend Management, exactly as the ROADMAP D-10 note states. The wording is reconciled, not silently dropped.
+
+---
