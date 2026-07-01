@@ -52,8 +52,21 @@ import { shareVerdict, buildVerdictShareParts, type VerdictCardData } from './sh
 //   'brushoff' (SAFE-02): a red-line submission was refused server-side BEFORE the
 //   judge ran. Like 'error', the round is UNCHANGED — no turn consumed, favor does
 //   not move, the reply stays intact — but the copy is Yapoleon's in-voice brush-off,
-//   not the generic "attention wandered" error. Retry re-issues the same turn.
-type UiPhase = 'idle' | 'pending' | 'revealed' | 'error' | 'brushoff';
+//   not the generic "attention wandered" error. UNLIKE 'error', there is no
+//   resubmit-the-same-text retry: the ReplyInput stays mounted so the player must
+//   EDIT the flagged reply and resubmit (D-06) — a red line would just flag again.
+export type UiPhase = 'idle' | 'pending' | 'revealed' | 'error' | 'brushoff';
+
+// Should the editable ReplyInput + SubmitButton be mounted for this state? Shown
+// whenever the round is still playable and we are NOT in the judge-failure 'error'
+// state (which owns its own same-reply retry). CRUCIALLY the 'brushoff' state DOES
+// keep the input mounted (this predicate returns true): a SAFE-02 red-line is not
+// consumed and the player must EDIT the flagged reply and resubmit, so there must be
+// no way to get stuck resubmitting identical red-line text (D-06). Pure — exported for
+// the RoundScreen brush-off regression test.
+export function shouldShowReplyInput(uiPhase: UiPhase, finished: boolean): boolean {
+  return !finished && uiPhase !== 'error';
+}
 
 // First-run flag (StorageAdapter / KNOWN_KEYS): once set, the "how to play" card no
 // longer auto-shows; the persistent "?" reopens it on demand.
@@ -324,6 +337,10 @@ export default function RoundScreen() {
   const handleSubmit = () => { if (canSubmit) void submitTurn(reply.trim()); };
   // Retry re-issues the SAME turn: the reply is still in state (it is only cleared on
   // a SUCCESSFUL turn), so we re-judge the current reply without advancing anything.
+  // This is ONLY for the judge-FAILURE error path (a failed judge call legitimately
+  // retries the same reply). The SAFE-02 brush-off path deliberately does NOT use this
+  // — resubmitting identical red-line text would just flag again (infinite loop); the
+  // player edits the reply and submits through the normal handleSubmit path instead.
   const handleRetry = () => { if (reply.trim().length > 0) void submitTurn(reply.trim()); };
 
   return (
@@ -399,15 +416,20 @@ export default function RoundScreen() {
           )}
 
           {/* BRUSH-OFF (SAFE-02): a red-line submission was refused before the judge.
-              In-voice, turn NOT consumed — "Try Again" re-issues the same (editable)
-              reply. Mirrors the error block's shape; distinct in-voice copy. */}
+              In-voice, turn NOT consumed. It is a passive BANNER with NO retry button —
+              the editable ReplyInput + SubmitButton stay mounted below so the player
+              EDITS the flagged reply and resubmits normally (D-06). This is what
+              prevents the infinite loop of re-issuing the same red-line text. */}
           {uiPhase === 'brushoff' && !finished && (
-            <BrushOffState onRetry={handleRetry} />
+            <BrushOffBanner />
           )}
 
-          {/* Input + CTA + turn counter — only while the round is still playable and
-              not currently in the error/brush-off state (those own the retry). */}
-          {!finished && uiPhase !== 'error' && uiPhase !== 'brushoff' && (
+          {/* Input + CTA + turn counter — shown while the round is still playable and
+              not in the judge-failure error state (which owns its own retry of the same
+              reply). The brush-off state DOES keep the input mounted: the player must
+              edit the flagged reply before resubmitting, so there is no way to get stuck
+              resubmitting identical red-line text. See shouldShowReplyInput. */}
+          {shouldShowReplyInput(uiPhase, finished) && (
             <>
               <ReplyInput value={reply} onChange={setReply} disabled={uiPhase === 'pending'} />
               <SubmitButton onClick={handleSubmit} disabled={!canSubmit} />
@@ -496,20 +518,26 @@ function HelpButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-// The SAFE-02 brush-off state — shown when the server refuses a red-line submission
+// The SAFE-02 brush-off BANNER — shown when the server refuses a red-line submission
 // (slur/hate, credible threat, sexual content involving a minor) BEFORE the judge runs.
 // Distinct copy from the judge-failure ErrorState (the Emperor is REFUSING, not
-// distracted) and from the card-error state. The turn is NOT consumed: "Try Again"
-// re-issues the SAME (still-editable) reply, so a false positive costs the player
-// nothing (D-06 forgiving).
+// distracted) and from the card-error state.
+//
+// CONTRACT (D-06): a flagged turn is NOT consumed and the player must EDIT the reply
+// and retry. So this is a passive in-voice BANNER, NOT an action card — it deliberately
+// owns NO "Try Again" button. The editable ReplyInput + SubmitButton stay mounted below
+// (with the preserved reply), so the player edits the offending text and resubmits
+// through the normal submit path. This closes the infinite brush-off loop where a
+// button re-issued the SAME red-line text (which would flag again forever).
 //
 // Copy discipline: the brush-off itself MUST pass the SAFE-01 all-ages bound — the barb
 // lands on the GUTTER-TALK (the attempt), never the person or a protected trait, and
-// carries no slur/strong profanity. Reuses the ErrorState visual pattern (20px/700 navy
-// heading + 16px body + ≥44px outlined retry). Announced via role="alert".
-function BrushOffState({ onRetry, disabled = false }: { onRetry: () => void; disabled?: boolean }) {
+// carries no slur/strong profanity. Announced via role="alert".
+// Exported for the RoundScreen brush-off regression test (it asserts the banner owns
+// no button — the fix that broke the infinite same-text resubmit loop).
+export function BrushOffBanner() {
   return (
-    <div role="alert" style={{ display: 'flex', flexDirection: 'column', gap: '12px', textAlign: 'center' }}>
+    <div role="alert" style={{ display: 'flex', flexDirection: 'column', gap: '8px', textAlign: 'center' }}>
       <p
         style={{
           fontFamily: '"Bricolage Grotesque", system-ui, sans-serif',
@@ -531,30 +559,8 @@ function BrushOffState({ onRetry, disabled = false }: { onRetry: () => void; dis
           margin: 0,
         }}
       >
-        Gutter-talk earns no audience. Bring wit, not filth, and try again.
+        Gutter-talk earns no audience. Edit your reply — bring wit, not filth — and send it again.
       </p>
-      <button
-        type="button"
-        onClick={onRetry}
-        disabled={disabled}
-        style={{
-          alignSelf: 'center',
-          minHeight: '48px',
-          minWidth: '44px',
-          padding: '12px 24px',
-          borderRadius: '8px',
-          border: '1.5px solid var(--yap-navy)',
-          backgroundColor: 'transparent',
-          color: 'var(--yap-navy)',
-          fontFamily: '"Bricolage Grotesque", system-ui, sans-serif',
-          fontSize: '16px',
-          fontWeight: 700,
-          cursor: disabled ? 'not-allowed' : 'pointer',
-          opacity: disabled ? 0.5 : 1,
-        }}
-      >
-        Try Again
-      </button>
     </div>
   );
 }
