@@ -159,6 +159,40 @@ const UPSTREAM_FETCH_TIMEOUT_MS = 9000;
 // Non-retryable status codes — fail immediately, no retry, no model fallback.
 const NON_RETRYABLE = new Set([400, 401, 403, 404, 413]);
 
+// ── COST-04: the degradation path (D-09/D-10) ──────────────────────────────
+// M1 ships the MANUAL force-degrade lever + an app-level concurrency damper;
+// auto-triggers (spend/429/latency) are POST-LAUNCH (D-10). When degrading, the
+// handler serves a CACHED in-voice reaction with ZERO model calls — a still-
+// playable, cheaper round under load. HARD INVARIANT: the degrade branch STILL
+// derives favorDelta via deriveFavorDelta(axisScores, dayWeights) from NEUTRAL
+// scores; no cost/degrade signal ever enters the rubric, weights, or threshold.
+// The flag is read at REQUEST time (not module load) so a Vercel env change takes
+// effect immediately and so it is unit-testable per request.
+function isDegradeMode() {
+  return process.env.DEGRADE_MODE === '1';
+}
+// A cached, generic, in-voice reaction. Quality hit, but in-character and
+// all-ages. It passes the SAFE-01 output bound (no slur/strong profanity; the
+// only barb lands on "the crush of petitioners", never the person or the line)
+// and names NO specific player reply. Verified in api/court-judge.degrade.test.js
+// via src/safety/output-scan.ts (scanForBannedProfanity + targetsPerson).
+const CACHED_REACTION =
+  'The court is thronged today, and even an Emperor cannot weigh every petition at once. ' +
+  'Your suit is received and noted; my full verdict must wait for a quieter hour.';
+// The degrade path returns NEUTRAL axis scores — the meter stays coherent and the
+// number still flows through deriveFavorDelta (the fairness backbone owns it).
+const DEGRADE_AXIS_SCORES = { wit: 0.5, specificity: 0.5, audacity: 0.5, economy: 0.5, flattery: 0.5 };
+const DEGRADE_DOMINANT_AXIS = 'wit';
+
+// App-level concurrency damper (best-effort, single-instance). Vercel Fluid
+// Compute auto-scales concurrency (no native per-project dial), so this is an
+// in-process counter: over the threshold, a request takes the SAME cached-
+// reaction path (0 model calls) instead of calling the model. Imperfect across
+// instances, but a real cost damper under a spike on a single warm instance. The
+// account-level hard stop is Vercel Spend Management (see .env.example / the ledger).
+const MAX_CONCURRENT_JUDGE = Number(process.env.MAX_CONCURRENT_JUDGE) || 40;
+let inFlightJudgeCount = 0;
+
 // ── Outbound alerting (forked; disabled unless ALERT_WEBHOOK_URL is set) ──
 const ALERT_WEBHOOK_URL = process.env.ALERT_WEBHOOK_URL || '';
 const ALERT_TO = process.env.ALERT_TO || 'problem@yapoleon.com';
@@ -598,6 +632,35 @@ export default async function handler(req, res) {
     return;
   }
 
+  // ── COST-04: force-degrade branch (D-09/D-10) ──────────────────────────────
+  // Anchored AFTER the moderation pre-filter and BEFORE any model work (the body
+  // build + the model loop below). Degrade when the operator has set the manual
+  // flag (DEGRADE_MODE=1) OR when the in-process concurrency damper is already at
+  // its threshold. Either way we serve the CACHED in-voice reaction with ZERO
+  // model calls — a cheaper, still-playable round under load.
+  //
+  // HARD INVARIANT: favorDelta is STILL derived by deriveFavorDelta from NEUTRAL
+  // axis scores. The degrade decision NEVER touches the rubric, weights, or the
+  // win threshold; no cost/degrade signal enters the number. The response is a
+  // valid JudgeResult { axisScores, favorDelta, dominantAxis, reaction } and the
+  // event is logged (mode:'judge', a degraded marker) for cost/quality attribution.
+  const overConcurrency = inFlightJudgeCount >= MAX_CONCURRENT_JUDGE;
+  if (isDegradeMode() || overConcurrency) {
+    const favorDelta = deriveFavorDelta(DEGRADE_AXIS_SCORES, dayWeights);
+    res.status(200).json({
+      axisScores: DEGRADE_AXIS_SCORES,
+      favorDelta,
+      dominantAxis: DEGRADE_DOMINANT_AXIS,
+      reaction: CACHED_REACTION,
+    });
+    await logOutcome({
+      statusCode: 200,
+      errorCode: 'degraded',
+      errorDetail: isDegradeMode() ? 'degrade_mode_flag' : 'concurrency_over_threshold',
+    });
+    return;
+  }
+
   // ── Build the judge request body (ADAPTATIONS #1 + #2) ──
   // ADAPTATION #1: the judge path runs at ~0.2 with NO lower-bound clamp on temp.
   //
@@ -646,6 +709,14 @@ export default async function handler(req, res) {
     },
   };
 
+  // COST-04: enter the model-calling section under the concurrency damper. The
+  // counter is incremented here (the point past which a model call is imminent)
+  // and decremented in the finally below, so every exit path — success, parse
+  // error, upstream error, or a thrown exception — releases the slot. A request
+  // that arrives while the counter is already at MAX_CONCURRENT_JUDGE took the
+  // cached-reaction path above and never reaches here.
+  inFlightJudgeCount += 1;
+  try {
   let lastStatus = 0;
   let lastDetail = '';
   let saw429 = false;
@@ -742,4 +813,8 @@ export default async function handler(req, res) {
     statusCode: status,
   });
   await logOutcome({ statusCode: status, errorCode: code, errorDetail: lastDetail });
+  } finally {
+    // Release the concurrency slot on EVERY exit path (COST-04 damper).
+    inFlightJudgeCount -= 1;
+  }
 }
