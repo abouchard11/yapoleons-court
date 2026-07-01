@@ -172,6 +172,31 @@ const redLinesMatcher = new RegExpMatcher({
   ...englishRecommendedTransformers,
 });
 
+// ── Zero-width / format / combining normalization (SAFE-02 bypass fix) ──
+// obscenity's englishRecommendedTransformers normalize leet + confusables +
+// collapsed-duplicates, but they do NOT strip ZERO-WIDTH / format / combining
+// characters. So a slur split by a zero-width space (`n​ig​ger`) or
+// carrying combining marks slips the scan untouched. We NFKC-normalize and strip
+// those code points BEFORE matching so the obfuscation collapses to the base
+// letters the matcher already catches. Linear, single-pass regex — ReDoS-safe
+// (character-class replacement, no alternation/backtracking). We match on the
+// normalized copy but STILL return category-only, never the text (D-07).
+//
+// Stripped set:
+//   ​–‍  zero-width space / non-joiner / joiner
+//   ﻿         zero-width no-break space (BOM)
+//   ⁠         word joiner
+//   ­         soft hyphen
+//   \p{Cf}         all Unicode "format" characters (superset incl. bidi controls)
+//   \p{Mn}         all non-spacing combining marks
+const ZERO_WIDTH_AND_MARKS = /[​-‍﻿⁠­\p{Cf}\p{Mn}]/gu;
+
+function normalizeForRedLines(text) {
+  // NFKC folds compatibility forms (full-width, ligatures) to their base; the
+  // strip then removes invisible/format/combining code points used to split words.
+  return text.normalize('NFKC').replace(ZERO_WIDTH_AND_MARKS, '');
+}
+
 // Resolve the category for a match: custom phrases carry `category` directly; the
 // kept preset slurs carry only `originalWord`, so those map to the slur category.
 function categoryForMatch(phraseMetadata) {
@@ -195,7 +220,12 @@ export function detectRedLines(text) {
   if (typeof text !== 'string' || !text.trim()) {
     return { flagged: false, category: null };
   }
-  const matches = redLinesMatcher.getAllMatches(text, /* sorted */ true);
+  // Normalize away zero-width / format / combining obfuscation BEFORE matching so
+  // a slur split by invisible characters (`n​ig​ger`) collapses to the base
+  // letters the matcher catches. We match on the normalized copy but never carry
+  // any text out (D-07 — return category-only).
+  const normalized = normalizeForRedLines(text);
+  const matches = redLinesMatcher.getAllMatches(normalized, /* sorted */ true);
   if (matches.length === 0) {
     return { flagged: false, category: null };
   }

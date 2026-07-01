@@ -98,6 +98,62 @@ describe('detectRedLines — SAFE-02 red-lines input pre-filter', () => {
     expect(detectRedLines(42)).toEqual({ flagged: false, category: null });
     expect(detectRedLines({})).toEqual({ flagged: false, category: null });
   });
+
+  // ── SAFE-02 regression: zero-width / combining bypass (fix #3) ──
+  // A slur split by zero-width spaces / joiners, or carrying combining marks, must
+  // NOT reach the judge. NFKC + a linear strip of zero-width/format/combining code
+  // points runs BEFORE the matcher so the obfuscation collapses to the base letters.
+  describe('normalizes away zero-width / format / combining obfuscation before matching', () => {
+    // ZWSP (U+200B) split — the empirical repro that reached the judge before the fix.
+    const zwsp = ['n', '​', 'ig', '​', 'ger'].join('');
+    // Zero-width joiner (U+200D) split.
+    const zwj = ['n', '‍', 'ig', '‍', 'ger'].join('');
+    // Combining acute accent (U+0301) between each letter.
+    const combining = ['ni', 'gger'].join('').split('').join('́');
+    // Soft hyphen (U+00AD) split.
+    const softHyphen = ['nig', '­', 'ger'].join('');
+
+    it('flags a ZWSP-split slur (the reported bypass)', () => {
+      const r = detectRedLines(zwsp);
+      expect(r.flagged).toBe(true);
+      expect(r.category).toBe('slur_hate');
+    });
+
+    it('flags zero-width-joiner and soft-hyphen splits of the same slur', () => {
+      expect(detectRedLines(zwj).flagged).toBe(true);
+      expect(detectRedLines(softHyphen).flagged).toBe(true);
+    });
+
+    it('flags a combining-mark-obfuscated slur', () => {
+      const r = detectRedLines(combining);
+      expect(r.flagged).toBe(true);
+      expect(r.category).toBe('slur_hate');
+    });
+
+    it('still returns category-only (never the text) on the normalized path (D-07)', () => {
+      const r = detectRedLines(zwsp);
+      expect(Object.keys(r).sort()).toEqual(['category', 'flagged']);
+      for (const value of Object.values(r)) {
+        expect(String(value)).not.toContain('ig');
+      }
+    });
+
+    it('does NOT false-flag innocent text that merely contains zero-width chars', () => {
+      expect(detectRedLines('a perfectly​ polite‍ reply').flagged).toBe(false);
+    });
+
+    it('empty / null still safe after normalization', () => {
+      expect(detectRedLines('')).toEqual({ flagged: false, category: null });
+      expect(detectRedLines(null)).toEqual({ flagged: false, category: null });
+    });
+
+    it('is ReDoS-safe on a long run of zero-width characters (linear normalization)', () => {
+      const t0 = Date.now();
+      const r = detectRedLines('​'.repeat(50000) + 'harmless text here');
+      expect(r.flagged).toBe(false);
+      expect(Date.now() - t0).toBeLessThan(1000);
+    });
+  });
 });
 
 describe('sanitizeText — unchanged by the SAFE-02 addition (sibling export intact)', () => {
