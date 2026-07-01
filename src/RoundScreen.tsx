@@ -28,7 +28,7 @@ import ErrorState from './components/ErrorState';
 import GreetingMoment from './components/GreetingMoment';
 import OnboardingCard from './components/OnboardingCard';
 import { fetchGreeting, type GreetingPayload } from './court-dossier';
-import { ensureIdentity, apiFetch } from './court-identity';
+import { ensureIdentity, apiFetch, identifyPlayer } from './court-identity';
 import { StorageAdapter } from './storage-adapter';
 import { selectDailyDemand, type DemandRecord } from './demands';
 import { getDayNumber } from './daily';
@@ -109,6 +109,10 @@ export default function RoundScreen() {
       try {
         await ensureIdentity();
         identityReady.current = true;
+        // VAL-01 (first-launch site): the id was just minted async (absent when main.tsx's
+        // module-load posthog.init ran), so this is where a brand-new player is identified —
+        // the exact cohort D1 retention needs. Idempotent + truthy-id-guarded; no person-props.
+        identifyPlayer();
         const res = await apiFetch('/api/court-can-play', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

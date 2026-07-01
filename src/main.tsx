@@ -5,6 +5,7 @@ import posthog from 'posthog-js'
 import App from './App'
 import './index.css'
 import { StorageAdapter } from './storage-adapter'
+import { identifyPlayer } from './court-identity'
 
 if (import.meta.env.VITE_POSTHOG_KEY) {
   posthog.init(import.meta.env.VITE_POSTHOG_KEY, {
@@ -20,6 +21,12 @@ if (import.meta.env.VITE_POSTHOG_KEY) {
   // the canonical dimension instead. register_once: Capacitor.getPlatform() is stable
   // per app lifetime, so set-once is correct.
   posthog.register_once({ app_platform: Capacitor.getPlatform() })
+  // VAL-01: identify a RETURNING player whose id is already in storage at load, so D1/D7
+  // retention cohorts (empty under person_profiles:'identified_only' until identify runs)
+  // key on the anonymous player_id. A genuine FIRST launch has no id yet here (it is minted
+  // async in RoundScreen) — identifyPlayer() is a truthy-id-guarded no-op in that case and
+  // the first-launch identify happens post-mint in RoundScreen. No person-props → no PII.
+  identifyPlayer()
 }
 
 async function bootstrap() {

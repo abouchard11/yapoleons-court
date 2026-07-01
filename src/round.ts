@@ -10,9 +10,9 @@
 // (LOOP-05); this client RoundState is an instant-restore cache only (court.round.v1).
 
 import { StorageAdapter } from './storage-adapter';
+import { MAX_TURNS } from './config';   // LOOP-02 hard cap — VAL-04 config flag (value stays 3)
 import type { JudgeResult } from './judge';
 
-const MAX_TURNS = 3;     // LOOP-02 hard cap
 const WIN_FAVOR = 100;   // LOOP-03 concession threshold
 const FLOOR_FAVOR = 0;   // METER-02 floor (never renders negative)
 

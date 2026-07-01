@@ -1,3 +1,4 @@
+import posthog from 'posthog-js';
 import { StorageAdapter } from './storage-adapter';
 import { API_BASE } from './config';
 
@@ -23,6 +24,30 @@ export function getToken(): string | null {
 
 export function getPlayerId(): string | null {
   return StorageAdapter.getItem(IDENTITY_PLAYER_ID);
+}
+
+// ── PostHog identity (VAL-01) ──
+//
+// The single identify site. getPlayerId() is a SYNCHRONOUS storage read but the id is
+// minted ASYNCHRONOUSLY (mintIdentity → POST /api/court-anon), and the only mint caller
+// is RoundScreen's async mount effect — which runs AFTER main.tsx's module-load
+// posthog.init(). So a main.tsx-ONLY identify is SKIPPED on a genuine first launch (the
+// id is still null there) and the new-player cohort — the exact cohort VAL-01/D1 exists
+// to measure — is never identified. FIX: call this from BOTH main.tsx (returning player,
+// id already in storage at load) AND RoundScreen after ensureIdentity() resolves (first
+// launch, id just minted).
+//
+// Idempotent + truthy-id-guarded: with person_profiles:'identified_only' set in main.tsx,
+// D1/D7 cohorts stay empty until identify runs at the site where the id actually exists.
+// A returning-player double-call is harmless (identify with the same id is a no-op). The
+// person-props 2nd arg is DELIBERATELY omitted — no PII is ever attached to the opaque id
+// (SAFE-03 / COPPA; the "never join PII to player_id" invariant).
+export function identifyPlayer(): void {
+  const id = getPlayerId();
+  if (!id) return; // no identity minted yet → skip silently (first-launch main.tsx path)
+  try {
+    posthog.identify(id); // NO person-props — the id stays opaque (no PII, SAFE-03).
+  } catch { /* PostHog send failure is non-critical (mirrors trackEvent) */ }
 }
 
 // ── Mint (replaces the source engine's sign-up register) ──
