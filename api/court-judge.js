@@ -661,6 +661,20 @@ export default async function handler(req, res) {
     return;
   }
 
+  // COST-04 — RESERVE THE CONCURRENCY SLOT ATOMICALLY (TOCTOU fix).
+  // The `overConcurrency` check above and this increment MUST have NO `await`
+  // between them: otherwise a burst of requests all read the counter below the
+  // threshold before any of them increments, and they ALL enter the model loop —
+  // blowing past MAX_CONCURRENT_JUDGE. Node runs this synchronous check→increment
+  // pair to completion without yielding the event loop, so the reservation is
+  // atomic. The degrade branch above must NEVER reach here (it `return`s and makes
+  // no model call, so it must not hold a slot). The `try` opens IMMEDIATELY so that
+  // everything past the reservation — including the `await readShapeNotes` below —
+  // runs inside the block whose `finally` decrements; a throw in readShapeNotes can
+  // no longer leak the slot.
+  inFlightJudgeCount += 1;
+  try {
+
   // ── Build the judge request body (ADAPTATIONS #1 + #2) ──
   // ADAPTATION #1: the judge path runs at ~0.2 with NO lower-bound clamp on temp.
   //
@@ -709,14 +723,14 @@ export default async function handler(req, res) {
     },
   };
 
-  // COST-04: enter the model-calling section under the concurrency damper. The
-  // counter is incremented here (the point past which a model call is imminent)
-  // and decremented in the finally below, so every exit path — success, parse
-  // error, upstream error, or a thrown exception — releases the slot. A request
-  // that arrives while the counter is already at MAX_CONCURRENT_JUDGE took the
-  // cached-reaction path above and never reaches here.
-  inFlightJudgeCount += 1;
-  try {
+  // COST-04: the model-calling section runs under the concurrency damper. The slot
+  // was RESERVED atomically right after the over-threshold check (see the increment
+  // above, immediately following the degrade branch) — with no await in between, so
+  // a burst cannot pass the check en masse before incrementing. The `finally` below
+  // decrements on every exit path (success, parse error, upstream error, thrown
+  // exception, or a throw from the readShapeNotes await which is now inside this
+  // try). A request that arrives while the counter is already at
+  // MAX_CONCURRENT_JUDGE took the cached-reaction path above and never reaches here.
   let lastStatus = 0;
   let lastDetail = '';
   let saw429 = false;
