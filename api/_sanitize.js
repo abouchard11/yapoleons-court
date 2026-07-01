@@ -127,10 +127,47 @@ redLinesDataset.addPhrase((p) =>
     .setMetadata({ category: CATEGORY.THREAT })
     .addPattern(pattern`kill yourself`)
     .addPattern(pattern`kill your self`)
+    // "kill you" — contraction/colloquialism variants (SAFE-02 threat-literal fix).
+    // Precision-biased: each is an explicit first-person "<I> <will/gonna> kill you"
+    // construction. All linear literal patterns — obscenity's RegExpMatcher is
+    // non-backtracking, so this stays ReDoS-safe.
+    //
+    // COLLAPSE-DUPLICATES NOTE (important): englishRecommendedTransformers include
+    // `collapseDuplicatesTransformer`, which folds a doubled letter in the INPUT to
+    // a single letter (`gonna`→`gona`, `wanna`→`wana`, `imma`→`ima`) but does NOT
+    // transform the pattern. A literal `gonna`/`wanna`/`imma` pattern therefore
+    // never matches the collapsed input. So the colloquial forms are authored with
+    // a SINGLE consonant (`gona`, `wana`, `ima`); after collapse, BOTH the doubled
+    // ("gonna kill you") and single ("gona kill you") inputs normalize to this and
+    // flag. (Verified in api/_sanitize.test.js.)
     .addPattern(pattern`i will kill you`)
+    .addPattern(pattern`ill kill you`)
+    .addPattern(pattern`i'll kill you`)
     .addPattern(pattern`im going to kill you`)
     .addPattern(pattern`i am going to kill you`)
+    .addPattern(pattern`im gona kill you`)
+    .addPattern(pattern`gona kill you`)
+    .addPattern(pattern`going to kill you`)
+    .addPattern(pattern`ima kill you`)
+    .addPattern(pattern`i'ma kill you`)
+    .addPattern(pattern`i wana kill you`)
+    // KNOWN, BACKSTOPPED LIMITATION: an arbitrary infixed intensifier
+    // ("i will FUCKING kill you") still slips these literal phrase patterns — we
+    // deliberately do NOT add a backtracking gap-matcher (ReDoS bias). The judge
+    // + the no-storage posture (the reply is never persisted, D-07) backstop it.
+    // "murder you" — the parallel set of contraction/colloquialism variants
+    // (same collapse-duplicates single-consonant authoring for gona/wana/ima).
     .addPattern(pattern`i will murder you`)
+    .addPattern(pattern`ill murder you`)
+    .addPattern(pattern`i'll murder you`)
+    .addPattern(pattern`im going to murder you`)
+    .addPattern(pattern`i am going to murder you`)
+    .addPattern(pattern`im gona murder you`)
+    .addPattern(pattern`gona murder you`)
+    .addPattern(pattern`going to murder you`)
+    .addPattern(pattern`ima murder you`)
+    .addPattern(pattern`i'ma murder you`)
+    .addPattern(pattern`i wana murder you`)
     .addPattern(pattern`i will hunt you down`)
     .addPattern(pattern`i will find you and`)
     .addPattern(pattern`i hope you die`)

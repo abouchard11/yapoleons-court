@@ -154,6 +154,51 @@ describe('detectRedLines — SAFE-02 red-lines input pre-filter', () => {
       expect(Date.now() - t0).toBeLessThan(1000);
     });
   });
+
+  // ── SAFE-02 regression: threat contraction/colloquialism coverage (fix #4) ──
+  // "I'll kill you", "im gonna kill you", "gonna kill you", etc. all reached the
+  // judge before the fix. The colloquial gonna/wanna/imma forms are authored with a
+  // single consonant so they survive collapseDuplicatesTransformer (see _sanitize.js).
+  describe('broadened threat phrase coverage (contractions / colloquialisms)', () => {
+    const flaggedThreats = [
+      "I'll kill you",
+      'ill kill you',
+      'im gonna kill you',
+      'im going to kill you',
+      'gonna kill you',
+      'going to kill you',
+      'imma kill you',
+      "i'ma kill you",
+      'i wanna kill you',
+      "i'll murder you",
+      'im gonna murder you',
+      'gonna murder you',
+      'imma murder you',
+      'i wanna murder you',
+    ];
+    it.each(flaggedThreats)('flags %j as a threat red line', (phrase) => {
+      const r = detectRedLines(phrase);
+      expect(r.flagged).toBe(true);
+      expect(r.category).toBe('threat');
+    });
+
+    const innocent = [
+      'you killed that line',
+      'dying of boredom',
+      'kill the lights',
+      'you murdered that punchline',
+    ];
+    it.each(innocent)('does NOT flag innocent use %j', (phrase) => {
+      expect(detectRedLines(phrase).flagged).toBe(false);
+    });
+
+    it('documents that an infixed intensifier still passes (known, backstopped limitation)', () => {
+      // An arbitrary infix ("i will FUCKING kill you") slips the literal phrase
+      // patterns by design (no backtracking gap-matcher — ReDoS bias). The judge +
+      // the no-storage posture backstop it. This test PINS that documented behavior.
+      expect(detectRedLines('i will fucking kill you').flagged).toBe(false);
+    });
+  });
 });
 
 describe('sanitizeText — unchanged by the SAFE-02 addition (sibling export intact)', () => {
