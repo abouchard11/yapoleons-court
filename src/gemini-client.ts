@@ -65,12 +65,31 @@ export const trackEvent = (name: string, params: Record<string, unknown> = {}) =
 export class JudgeError extends Error {
   status?: number;
   code?: string;
-  constructor(message: string, status?: number, code?: string) {
+  // SAFE-02: a red-line category when `code === 'moderation_flagged'` (else undefined).
+  // Category ONLY (e.g. 'slur_hate' | 'threat' | 'sexual_minor') — never the input text.
+  category?: string | null;
+  constructor(message: string, status?: number, code?: string, category?: string | null) {
     super(message);
     this.name = 'JudgeError';
     this.status = status;
     this.code = code;
+    this.category = category;
   }
+}
+
+// SAFE-02 (Plan 04-02): the server's distinct moderation response code. On a red-line
+// the judge returns a 200 whose body is `{ code: MODERATION_FLAGGED_CODE, category }`
+// (NOT a JudgeResult). judgeReply intercepts it BEFORE parseJudgeResult and surfaces a
+// JudgeError carrying this code + category, so RoundScreen can render the in-voice
+// brush-off (turn NOT consumed) instead of a generic parse error. The turn-not-consumed
+// contract is the caller's (RoundScreen.submitTurn) — this module only distinguishes the
+// signal.
+export const MODERATION_FLAGGED_CODE = 'moderation_flagged';
+
+// Type guard the client uses to branch on the moderation signal without string-matching
+// in multiple places. True only for a JudgeError carrying the moderation code.
+export function isModerationFlag(err: unknown): err is JudgeError {
+  return err instanceof JudgeError && err.code === MODERATION_FLAGGED_CODE;
 }
 
 export type JudgeFetchOptions = {
@@ -186,11 +205,40 @@ export const judgeReply = async (
         throw new Error(`Judge ${res.status}`);
       }
 
+      // SAFE-02 BRIDGE: a red-line submission comes back as a 200 whose body is NOT a
+      // JudgeResult but `{ code: 'moderation_flagged', category }`. WITHOUT this
+      // interception the 200 would fall through to parseJudgeResult and surface as an
+      // indistinguishable GENERIC, code-less JudgeError ("Judge result missing
+      // axisScores"). Intercept it FIRST and surface a moderation-tagged JudgeError
+      // (carrying the code + category) so the caller can render the in-voice brush-off
+      // instead of the generic error state. This is a deterministic outcome — do NOT
+      // retry it (a red line will flag again) — so it is thrown and re-thrown past the
+      // backoff loop by the isModerationFlag guard in catch.
+      const moderationCode = (data as Record<string, unknown>).code;
+      if (moderationCode === MODERATION_FLAGGED_CODE) {
+        const category = (data as Record<string, unknown>).category;
+        trackEvent('court_moderation_flagged', {
+          category: typeof category === 'string' ? category : 'red_line',
+        });
+        throw new JudgeError(
+          'moderation flagged',
+          res.status,
+          MODERATION_FLAGGED_CODE,
+          typeof category === 'string' ? category : null,
+        );
+      }
+
       const result = parseJudgeResult(data);
       trackEvent('court_judge_ok', { dominant_axis: result.dominantAxis, delta: result.favorDelta });
       return result;
     } catch (err) {
       if ((err as Error)?.name === 'AbortError' && options?.signal?.aborted) {
+        throw err;
+      }
+      // SAFE-02: a moderation flag is a DETERMINISTIC 200 outcome — surface it
+      // immediately (do NOT retry; a red line re-flags). It carries status 200 so it
+      // would otherwise slip past the 4xx guard below into the backoff loop.
+      if (isModerationFlag(err)) {
         throw err;
       }
       if (err instanceof JudgeError && err.status && err.status >= 400 && err.status < 500) {

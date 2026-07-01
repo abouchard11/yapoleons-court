@@ -38,6 +38,11 @@ import {
 import { originAllowed, setCorsHeaders } from './_cors.js';
 import { getClientIp, isIpFloodLimited, isUserRateLimited } from './_ratelimit.js';
 import { buildYapoleonPrompt } from './_yapoleon.js';
+// SAFE-02 (Plan 04-02): the deterministic red-lines input pre-filter. Runs AFTER the
+// rate-limit gate and BEFORE the single model call — a flagged reply returns a
+// distinct moderation code and NEVER reaches the model endpoint (0 extra model
+// calls, COST-01). The flag is NEVER passed to deriveFavorDelta (HARD INVARIANT).
+import { detectRedLines } from './_sanitize.js';
 
 // Model chain forked verbatim — Flash primary, Flash fallback. Current as of the
 // 2026-05 GA (RESEARCH §C). The chain falls through on transient errors only.
@@ -541,6 +546,55 @@ export default async function handler(req, res) {
       modelAttempted,
     });
     await logOutcome({ statusCode: 429, errorCode: 'user_rate_limited', errorDetail: 'per-user rate limit hit' });
+    return;
+  }
+
+  // ── SAFE-02: deterministic red-lines pre-filter (D-04/D-05/D-06/D-07) ──────────
+  // Runs AFTER the origin + rate-limit gates and BEFORE any model work (the
+  // geminiBody build + the JUDGE_MODELS loop below). On a red-line (slur/hate,
+  // credible threat, sexual content involving a minor) we RETURN here so the model
+  // NEVER fires — zero extra model calls (COST-01 honored; the pinned model-call
+  // count stays 5). This is the FIRST branch a later wave (04-03 DEGRADE_MODE)
+  // anchors after, so it is kept deliberately self-contained.
+  //
+  // The response is a 200 carrying a DISTINCT code (`moderation_flagged`) — NOT a
+  // generic error — so the client (src/gemini-client.ts bridge → RoundScreen) can
+  // render the in-voice brush-off with the turn NOT consumed (D-06 forgiving). A
+  // moderation flag is deliberately NOT counted as rate-limit abuse: a false
+  // positive must not lock out a legitimate player retrying.
+  //
+  // D-07 (no-PII / COPPA-safe): we log the flag + CATEGORY ONLY. `detectRedLines`
+  // returns no text, and this observability call passes `prompt: null` — the
+  // offending reply is never persisted. The flag is never passed to
+  // deriveFavorDelta (HARD INVARIANT).
+  const redLine = detectRedLines(reply);
+  if (redLine.flagged) {
+    res.status(200).json({ code: 'moderation_flagged', category: redLine.category, requestId });
+    try {
+      void recordYapoleonEvent({
+        createdAt: new Date().toISOString(),
+        requestId: requestId || null,
+        requestHash,
+        deploymentId: runtimeMeta.deploymentId,
+        commitSha: runtimeMeta.commitSha,
+        vercelEnv: runtimeMeta.vercelEnv,
+        mode: 'judge',
+        requestedModel: null,
+        modelAttempted: null, // no model was attempted — the pre-filter short-circuited
+        selectedModel: null,
+        statusCode: 200,
+        fallback: false,
+        latencyMs: Date.now() - startedAt,
+        errorCode: 'moderation_flagged',
+        // CATEGORY ONLY — never the offending text (D-07).
+        errorDetail: `red-line category: ${redLine.category}`,
+        humorSample: null,
+        prompt: null, // D-07: the reply is NOT logged on the moderation path.
+        usage: null,
+        upstreamAttempts: null,
+        regenerated: false,
+      });
+    } catch { /* observability must never break the request */ }
     return;
   }
 

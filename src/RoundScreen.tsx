@@ -32,7 +32,7 @@ import { ensureIdentity, apiFetch } from './court-identity';
 import { StorageAdapter } from './storage-adapter';
 import { selectDailyDemand, type DemandRecord } from './demands';
 import { getDayNumber } from './daily';
-import { judgeReply } from './gemini-client';
+import { judgeReply, isModerationFlag } from './gemini-client';
 import {
   applyTurn,
   freshRound,
@@ -49,7 +49,11 @@ import { shareVerdict, buildVerdictShareParts, type VerdictCardData } from './sh
 // The submit/UI phase OVER the round state. The round's own status (playing/won/
 // lost) is the durable truth; `uiPhase` tracks the transient in-flight/reveal/error
 // beats that are not persisted.
-type UiPhase = 'idle' | 'pending' | 'revealed' | 'error';
+//   'brushoff' (SAFE-02): a red-line submission was refused server-side BEFORE the
+//   judge ran. Like 'error', the round is UNCHANGED — no turn consumed, favor does
+//   not move, the reply stays intact — but the copy is Yapoleon's in-voice brush-off,
+//   not the generic "attention wandered" error. Retry re-issues the same turn.
+type UiPhase = 'idle' | 'pending' | 'revealed' | 'error' | 'brushoff';
 
 // First-run flag (StorageAdapter / KNOWN_KEYS): once set, the "how to play" card no
 // longer auto-shows; the persistent "?" reopens it on demand.
@@ -272,7 +276,17 @@ export default function RoundScreen() {
       saveRound(next);
       setReply('');
       setUiPhase('revealed');
-    } catch {
+    } catch (err) {
+      // SAFE-02: a red-line submission is refused server-side BEFORE the judge runs
+      // (moderation_flagged). It is NOT a judge failure — render the in-voice brush-off
+      // instead of the generic error. CRITICALLY, like the error path, the round is
+      // UNCHANGED: no applyTurn ran, so the turn is NOT consumed, favor does not move,
+      // and the reply is left intact (NOT cleared) so the player can edit + retry.
+      // (D-06 forgiving — a false positive costs the player nothing.)
+      if (isModerationFlag(err)) {
+        setUiPhase('brushoff');
+        return;
+      }
       // Judge call failed → error state. The round is UNCHANGED (no applyTurn ran),
       // so the turn was not consumed and the favor did not move. "Try Again"
       // re-issues this same turn with the reply still intact.
@@ -357,9 +371,16 @@ export default function RoundScreen() {
             <ErrorState onRetry={handleRetry} />
           )}
 
+          {/* BRUSH-OFF (SAFE-02): a red-line submission was refused before the judge.
+              In-voice, turn NOT consumed — "Try Again" re-issues the same (editable)
+              reply. Mirrors the error block's shape; distinct in-voice copy. */}
+          {uiPhase === 'brushoff' && !finished && (
+            <BrushOffState onRetry={handleRetry} />
+          )}
+
           {/* Input + CTA + turn counter — only while the round is still playable and
-              not currently in the error state (the error state owns the retry). */}
-          {!finished && uiPhase !== 'error' && (
+              not currently in the error/brush-off state (those own the retry). */}
+          {!finished && uiPhase !== 'error' && uiPhase !== 'brushoff' && (
             <>
               <ReplyInput value={reply} onChange={setReply} disabled={uiPhase === 'pending'} />
               <SubmitButton onClick={handleSubmit} disabled={!canSubmit} />
@@ -445,6 +466,69 @@ function HelpButton({ onClick }: { onClick: () => void }) {
     >
       ?
     </button>
+  );
+}
+
+// The SAFE-02 brush-off state — shown when the server refuses a red-line submission
+// (slur/hate, credible threat, sexual content involving a minor) BEFORE the judge runs.
+// Distinct copy from the judge-failure ErrorState (the Emperor is REFUSING, not
+// distracted) and from the card-error state. The turn is NOT consumed: "Try Again"
+// re-issues the SAME (still-editable) reply, so a false positive costs the player
+// nothing (D-06 forgiving).
+//
+// Copy discipline: the brush-off itself MUST pass the SAFE-01 all-ages bound — the barb
+// lands on the GUTTER-TALK (the attempt), never the person or a protected trait, and
+// carries no slur/strong profanity. Reuses the ErrorState visual pattern (20px/700 navy
+// heading + 16px body + ≥44px outlined retry). Announced via role="alert".
+function BrushOffState({ onRetry, disabled = false }: { onRetry: () => void; disabled?: boolean }) {
+  return (
+    <div role="alert" style={{ display: 'flex', flexDirection: 'column', gap: '12px', textAlign: 'center' }}>
+      <p
+        style={{
+          fontFamily: '"Bricolage Grotesque", system-ui, sans-serif',
+          fontSize: '20px',
+          fontWeight: 700,
+          lineHeight: 1.2,
+          color: 'var(--yap-navy)',
+          margin: 0,
+        }}
+      >
+        The Emperor will not stoop to answer that.
+      </p>
+      <p
+        style={{
+          fontFamily: 'Inter, system-ui, sans-serif',
+          fontSize: '16px',
+          lineHeight: 1.5,
+          color: 'rgba(27, 42, 74, 0.75)',
+          margin: 0,
+        }}
+      >
+        Gutter-talk earns no audience. Bring wit, not filth, and try again.
+      </p>
+      <button
+        type="button"
+        onClick={onRetry}
+        disabled={disabled}
+        style={{
+          alignSelf: 'center',
+          minHeight: '48px',
+          minWidth: '44px',
+          padding: '12px 24px',
+          borderRadius: '8px',
+          border: '1.5px solid var(--yap-navy)',
+          backgroundColor: 'transparent',
+          color: 'var(--yap-navy)',
+          fontFamily: '"Bricolage Grotesque", system-ui, sans-serif',
+          fontSize: '16px',
+          fontWeight: 700,
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          opacity: disabled ? 0.5 : 1,
+        }}
+      >
+        Try Again
+      </button>
+    </div>
   );
 }
 
