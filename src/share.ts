@@ -19,8 +19,15 @@
 //     (web-first, D-05). It is NOT in Court's package.json — importing it would
 //     break the build. The 8-second native cleanup buffer is a comment-only note
 //     for when the native path lands later.
-//   • The Phase-4 share-rate analytics events are OMITTED — VAL-02 instrumentation
-//     is a later phase (CONTEXT Deferred), not Phase 2.
+//   • VAL-02 share-rate analytics (Plan 04-04) are now WIRED here via the trackEvent
+//     dual-emit bridge (D-12 two honest metrics): card_generated (reliable — fired when
+//     the blob is drawn, the kill-criteria denominator) + share_attempted (best-effort —
+//     fired at sheet-open/download BEFORE the await so a user-cancel does not un-count it).
+//     Neither carries reply text — outcome/turns/method only, keyed on the anonymous
+//     player_id (no PII). share_attempted is NEVER "confirmed shares" (Pitfall 6).
+
+import { trackEvent } from './gemini-client';
+import { getPlayerId } from './court-identity';
 
 // ── Types ──
 
@@ -393,6 +400,13 @@ export async function shareVerdict(
   day?: number,
 ): Promise<void> {
   const blob = await drawVerdictCard(data); // throws on render failure (surfaced upstream)
+
+  // VAL-02: card_generated is the RELIABLE share metric (D-12) — the blob was actually
+  // drawn (a render failure throws above, before this line, so it never fires on a failed
+  // draw). This is the kill-criteria denominator (card_generated / completed rounds), NOT
+  // share_attempted. outcome + turns_used only (from data) — no reply text, no PII.
+  trackEvent('card_generated', { player_id: getPlayerId(), outcome: data.outcome, turns_used: data.turnsUsed });
+
   const filename = `court-${day ?? 'verdict'}.png`;
   const file = new File([blob], filename, { type: 'image/png' });
 
@@ -415,6 +429,12 @@ export async function shareVerdict(
     typeof navigator.canShare === 'function' &&
     navigator.canShare({ files: [file] })
   ) {
+    // VAL-02: share_attempted is best-effort (D-12) — fired at the point of INVOKING the OS
+    // sheet, BEFORE the await, so a user-cancel (AbortError below) does NOT retroactively
+    // un-count it (Pitfall 6). navigator.share resolves on sheet-OPEN, not send — this is an
+    // ATTEMPT, never a "confirmed share". method distinguishes the OS-sheet path from the
+    // desktop download. No reply text, no PII.
+    trackEvent('share_attempted', { player_id: getPlayerId(), outcome: data.outcome, method: 'os_share' });
     try {
       await navigator.share({ title: parts.title, text: parts.text, files: [file] });
       return;
@@ -425,6 +445,9 @@ export async function shareVerdict(
   }
 
   // Desktop / no-canShare fallback: download the blob.
+  // VAL-02: the download branch's share_attempted (method:'download'). Fired before the
+  // click for symmetry with the OS-sheet path (best-effort, directional only).
+  trackEvent('share_attempted', { player_id: getPlayerId(), outcome: data.outcome, method: 'download' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

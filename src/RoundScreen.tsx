@@ -28,11 +28,11 @@ import ErrorState from './components/ErrorState';
 import GreetingMoment from './components/GreetingMoment';
 import OnboardingCard from './components/OnboardingCard';
 import { fetchGreeting, type GreetingPayload } from './court-dossier';
-import { ensureIdentity, apiFetch, identifyPlayer } from './court-identity';
+import { ensureIdentity, apiFetch, identifyPlayer, getPlayerId } from './court-identity';
 import { StorageAdapter } from './storage-adapter';
 import { selectDailyDemand, type DemandRecord } from './demands';
 import { getDayNumber } from './daily';
-import { judgeReply, isModerationFlag } from './gemini-client';
+import { judgeReply, isModerationFlag, trackEvent } from './gemini-client';
 import {
   applyTurn,
   freshRound,
@@ -142,6 +142,12 @@ export default function RoundScreen() {
       // would waste a model call). fetchGreeting resolves to null on a cold-start /
       // non-200 / offline → no beat: the round opens exactly as it does today.
       if (resolved.status === 'playing' && resolved.turns.length === 0) {
+        // VAL-04: round_started fires ONCE per fresh playable round (this branch is the
+        // fresh-round gate — NOT a replay-blocked re-open, which resolves to a terminal
+        // server round, NOR a resumed mid-round, which has turns.length > 0). It is the
+        // funnel entry point that catches a pre-turn-1 bounce (round_started with no
+        // turn_submitted). Anonymous player_id only — no PII.
+        trackEvent('round_started', { player_id: getPlayerId(), day, tier: 'fairfight' });
         const g = await fetchGreeting();
         if (!cancelled && g) setGreeting(g);
       }
@@ -251,6 +257,14 @@ export default function RoundScreen() {
         identityReady.current = true;
       }
 
+      // VAL-04: turn_submitted fires at the point of submission, BEFORE the judge await —
+      // so it counts the ATTEMPT even if the judge then throws (a SAFE-02 moderation flag,
+      // a network/parse failure). turn_index is the pre-turn count (round.turns is the
+      // pre-turn state — this reply is not in it yet); reply_length is a NUMBER only —
+      // the reply free-text is NEVER sent (D-07 / no PII). Powers per-turn abandonment +
+      // the effort proxy + within-round engagement decay.
+      trackEvent('turn_submitted', { player_id: getPlayerId(), turn_index: round.turns.length, reply_length: text.length });
+
       // ONE structured judge call → server-derived favorDelta. Pass the player's OWN
       // earlier replies THIS round (round.turns is the pre-turn state — the current reply
       // is not in it yet) so the judge's deterministic near-dup pre-check (JUDGE-05) has
@@ -260,6 +274,15 @@ export default function RoundScreen() {
 
       // Advance the round state machine (clamp + win/lose transitions).
       const next = applyTurn(round, text, result);
+
+      // VAL-04: round_completed fires ONLY on a TERMINAL applyTurn (won/lost) — the round's
+      // terminal verdict. It is UNREACHABLE on a SAFE-02 moderation-flagged turn: judgeReply
+      // throws during the await above, so applyTurn never runs and control jumps to catch
+      // (the brush-off branch) — a flagged attempt is a turn_submitted, never a
+      // round_completed. Anonymous player_id + non-PII outcome/turns/favor only.
+      if (next.status !== 'playing') {
+        trackEvent('round_completed', { player_id: getPlayerId(), outcome: next.status, turns_used: next.turns.length, final_favor: next.favor });
+      }
 
       // Record the round server-side (idempotent start + progress/outcome update).
       // Best-effort: a record failure must not block the reveal (the judge already
