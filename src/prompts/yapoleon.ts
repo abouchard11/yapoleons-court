@@ -276,7 +276,7 @@ export function buildYapoleonPrompt(ctx: YapoleonPromptCtx): YapoleonSplitPrompt
       instruction = [
         'State: dismissal. The courtier has run out of turns without winning your favor.',
         ctx.scene ? `The demand they failed to answer: ${ctx.scene}` : '',
-        'Dismiss them — entertainingly. Be witty about THE LINE and the attempt, never cruel about the person; the savagery targets the wit, not the human. No profanity.',
+        'Dismiss them — entertainingly. Be witty about THE LINE and the attempt, never cruel about the person; the savagery targets the wit, not the human. No slurs or strong profanity.',
         'One sharp turn on what their answer lacked or where it reached and missed — the gap between your standard and their try. End the audience.',
         VOICE_BAR,
       ].filter(Boolean).join(' ');

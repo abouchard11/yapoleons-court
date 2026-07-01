@@ -337,10 +337,13 @@ describe('voice integrity: the loss line targets the line, not the person (safe-
       turnsUsed: 3,
     });
     // SECONDARY anti-drift backstop for SAFE-01: the posture line bars cruelty
-    // toward the person. (Task 3 reconciles the profanity phrasing to the D-01
-    // mild allowlist in a single change set across the prompt twins + this pin.)
+    // toward the person and pins the D-01-consistent profanity phrasing ("No
+    // slurs or strong profanity" — mild words like "damn"/"hell" are permitted in
+    // output, so the blanket ban wording was deliberately refined). The
+    // corpus-through-real-judge OUTPUT gate above is the primary enforcement;
+    // this pins the prompt mechanism as a secondary check.
     expect(prompt.contents).toContain('never cruel about the person');
-    expect(prompt.contents).toContain('No profanity');
+    expect(prompt.contents).toContain('No slurs or strong profanity');
   });
 });
 
