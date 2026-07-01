@@ -75,7 +75,8 @@ function getClient() {
 }
 
 // Per-call $ at the primary model. thoughts_tokens billed at the OUTPUT rate.
-function callCost(inTok, outTok, thinkTok) {
+// Exported (pure) for the regression test.
+export function callCost(inTok, outTok, thinkTok) {
   const p = PRICE[PRIMARY_MODEL];
   return (
     (Number(inTok || 0) / 1e6) * p.inputPerM +
@@ -170,6 +171,34 @@ function summarize(rows) {
   return [...byDay.values()].sort((a, b) => (a.day < b.day ? 1 : -1));
 }
 
+// Per-DAU aggregation. The window total (tokens / cost / calls) is divided by
+// DAU-DAYS — the sum of each day's distinct-player count — NOT the single peak-day
+// DAU. Dividing a multi-day total by one day's headcount understates the
+// denominator and overstates per-DAU. Exported (pure) for the regression test.
+//
+// Method equivalence: total ÷ DAU-days == the DAU-weighted average of each day's
+// (daily cost ÷ daily DAU), so both formulations in the fix spec agree. peakDayDau
+// is carried through as a reported diagnostic only (it is NOT the divisor).
+export function computePerDau(perDay, dauDays, peakDayDau) {
+  const totalTok = perDay.reduce((s, d) => s + d.totalTok, 0);
+  const totalCalls = perDay.reduce((s, d) => s + d.calls, 0);
+  const totalCost = perDay.reduce((s, d) => s + callCost(d.inTok, d.outTok, d.thinkTok), 0);
+  const divisor = dauDays || 1; // guard div-by-zero on an empty window
+  return {
+    // The denominator is Σ(distinct players per day) — obs stays player-anonymous
+    // (D-07): we divide an aggregate by a headcount, never join a token row to a
+    // player_id.
+    denominator_method:
+      'window total ÷ DAU-days (Σ distinct court_rounds.player_id per day) ' +
+      '— equivalently the DAU-weighted avg of daily (cost ÷ DAU); obs has no player_id (D-07)',
+    dau_days: dauDays,
+    peak_day_dau: peakDayDau, // diagnostic only — NOT the divisor
+    tokens_per_dau: Number((totalTok / divisor).toFixed(1)),
+    cost_per_dau_usd: Number((totalCost / divisor).toFixed(6)),
+    avg_calls_per_dau: Number((totalCalls / divisor).toFixed(2)),
+  };
+}
+
 function fmt$(n) {
   return `$${n.toFixed(4)}`;
 }
@@ -201,8 +230,15 @@ async function main() {
   // Attach $ + the DAU divide. The DAU count is keyed by court_rounds.day (int);
   // we approximate the calendar-day <-> day mapping by ordinal alignment of the
   // window's days (documented caveat above) and expose the raw DAU map too.
+  //
+  // PER-DAU DENOMINATOR = DAU-DAYS (fix): the correct divisor for a WINDOW total is
+  // the sum of each day's distinct-player count (DAU-days), NOT the single peak-day
+  // DAU. Dividing a multi-day total by one day's headcount understates the
+  // denominator and OVERSTATES per-DAU (e.g. 7 days × 10 DAU = 70 DAU-days, not 10).
+  // We also keep the peak-day DAU purely as a reported diagnostic.
   const dauCounts = [...dauByDay.values()];
-  const windowDau = dauCounts.length ? Math.max(...dauCounts) : 0; // peak-day DAU (conservative divisor)
+  const dauDays = dauCounts.reduce((s, n) => s + n, 0); // Σ distinct players per day
+  const peakDayDau = dauCounts.length ? Math.max(...dauCounts) : 0; // diagnostic only
 
   const report = {
     window_days: days,
@@ -242,22 +278,7 @@ async function main() {
       }))
       .sort((a, b) => (a.day < b.day ? 1 : a.day > b.day ? -1 : a.mode.localeCompare(b.mode))),
     dau_by_court_rounds_day: Object.fromEntries(dauByDay),
-    per_dau: (() => {
-      // per-DAU = aggregate ÷ distinct court_rounds.player_id/day. We report the
-      // window totals divided by the PEAK single-day DAU (a conservative divisor
-      // that does not overstate the per-player number). Also report avg calls/round.
-      const totalTok = perDay.reduce((s, d) => s + d.totalTok, 0);
-      const totalCalls = perDay.reduce((s, d) => s + d.calls, 0);
-      const totalCost = perDay.reduce((s, d) => s + callCost(d.inTok, d.outTok, d.thinkTok), 0);
-      const divisor = windowDau || 1;
-      return {
-        denominator_method: 'distinct court_rounds.player_id per day (obs has no player_id — D-07)',
-        peak_day_dau: windowDau,
-        tokens_per_dau: Number((totalTok / divisor).toFixed(1)),
-        cost_per_dau_usd: Number((totalCost / divisor).toFixed(6)),
-        avg_calls_per_dau: Number((totalCalls / divisor).toFixed(2)),
-      };
-    })(),
+    per_dau: computePerDau(perDay, dauDays, peakDayDau),
   };
 
   if (asJson) {
@@ -302,15 +323,26 @@ async function main() {
     for (const [day, count] of dauEntries) console.log(`  day ${day}: ${count} player(s)`);
   }
 
-  console.log('\nper-DAU (aggregate ÷ peak-day distinct players — obs stays player-anonymous, D-07):');
-  console.log(`  peak-day DAU:        ${report.per_dau.peak_day_dau}`);
+  console.log('\nper-DAU (window total ÷ DAU-days = Σ distinct players/day — obs stays player-anonymous, D-07):');
+  console.log(`  DAU-days (divisor):  ${report.per_dau.dau_days}`);
+  console.log(`  peak-day DAU (diag): ${report.per_dau.peak_day_dau}`);
   console.log(`  tokens / DAU:        ${report.per_dau.tokens_per_dau}`);
   console.log(`  cost / DAU:          ${fmt$(report.per_dau.cost_per_dau_usd)}`);
   console.log(`  avg calls / DAU:     ${report.per_dau.avg_calls_per_dau}`);
   console.log('\nSee docs/economics/per-dau-cost-ledger.md for the ceiling (BUDGET_TOKENS) + the degradation levers.');
 }
 
-main().catch((err) => {
-  console.error('cost-ledger failed:', err.message);
-  process.exit(1);
-});
+// Run main() ONLY when executed directly (node scripts/cost-ledger.mjs), NOT when
+// imported (e.g. by the regression test, which imports the pure computePerDau /
+// callCost helpers). Without this guard, importing the module would run the CLI and
+// process.exit() out of the test.
+import { argv } from 'node:process';
+import { pathToFileURL } from 'node:url';
+
+const isMain = argv[1] && import.meta.url === pathToFileURL(argv[1]).href;
+if (isMain) {
+  main().catch((err) => {
+    console.error('cost-ledger failed:', err.message);
+    process.exit(1);
+  });
+}

@@ -56,9 +56,12 @@ GATE:  avg calls/round ≤ 5           (the envelope above)
 **Thoughts/thinking tokens are billed at the OUTPUT rate** (confirmed at the pricing page + the thinking docs). `normalizeTokenUsage` folds `thoughtsTokenCount` into the token columns; the $ formula bills them at output:
 
 ```
-per-call $ = prompt_tokens/1e6 * 1.50  +  (output_tokens + thoughts_tokens)/1e6 * 9.00
-per-DAU $  = Σ(per-call $) ÷ distinct court_rounds.player_id that day
+per-call $   = prompt_tokens/1e6 * 1.50  +  (output_tokens + thoughts_tokens)/1e6 * 9.00
+per-day  $   = Σ(per-call $ for that day)
+per-DAU  $   = Σ_days(per-day $) ÷ DAU-days,   where DAU-days = Σ_days(distinct court_rounds.player_id that day)
 ```
+
+**Denominator = DAU-days, NOT peak-day DAU.** The window total is divided by **DAU-days** — the sum of each day's distinct-player count — which is identical to the DAU-weighted average of each day's (daily cost ÷ daily DAU). Dividing a multi-day total by a single day's headcount (e.g. the peak day) understates the denominator and **overstates** per-DAU, so the ledger uses DAU-days. (`scripts/cost-ledger.mjs` reports DAU-days as the divisor and carries peak-day DAU as a labelled diagnostic only; pinned in `scripts/cost-ledger.test.mjs`.)
 
 **Worked $ at the provisional budget (gemini-3.5-flash):** a 20,000-token DAU whose split is ~70% input / ~30% output+thoughts (structured JSON output is small; prompts dominate) ≈ `14000/1e6*1.50 + 6000/1e6*9.00` ≈ `$0.021 + $0.054` ≈ **~$0.075 / DAU / day** as the ceiling. The live `cost-ledger.mjs` prints the actual per-DAU $ from real token rows (do not treat this worked figure as measured — it is the ceiling arithmetic). Because the fallback model is ~5–3.6× cheaper, any fallback traffic only pushes the real number BELOW this 3.5-flash ceiling.
 
