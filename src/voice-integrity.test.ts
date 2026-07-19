@@ -5,8 +5,8 @@
  * personality so a merge, a fork, or a future session cannot silently regress it,
  * and lightly pins the three NEW court states added in Plan 01-03
  * (judging / concession / dismissal). If a change to a baseline pin is
- * INTENTIONAL it must go through a Voice Lab session with the author (see the project docs
- * voice invariants); updating these pins without that conversation is the exact
+ * INTENTIONAL it must go through a dedicated voice review (see the voice
+ * invariants); updating these pins without that review is the exact
  * failure mode this file exists to catch.
  *
  * Forked from yapword's src/voice-integrity.test.ts (VOICE-02 — extend, never

@@ -1,6 +1,6 @@
 # Yapoleon's Court — Brand Guidelines
 
-**Status:** v1.0 · 2026-06-15 · derived from the LOCKED design ([DESIGN.md](DESIGN.md)) and the live tokens in [src/index.css](../../src/index.css).
+**Status:** v1.0 · 2026-06-15 · derived from the locked design system and the live tokens in [src/index.css](../../src/index.css).
 **Operator:** MidnightDev (midnightdev.dev). Second game in the **Yapoleon** franchise (sibling to *yapword*) — share the character, distinguish the game.
 
 This is the single source of truth for the public-facing identity (favicon, app icon, social card, legal pages). The in-app UI contract lives separately in the phase `UI-SPEC.md`; this doc governs the **brand marks and shell assets**.

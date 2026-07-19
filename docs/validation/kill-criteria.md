@@ -52,7 +52,7 @@ These are **failure signals, not targets**. Crossing a floor (once its readiness
 - **≥ N completed rounds per cell**, where a *cell* is the smallest bucket a given view slices to (e.g. skill-bin × turns-used for the win-rate view). This guards the **per-cell** diagnostics.
 - **≥ M D7-eligible players in the cohort**, where *D7-eligible* = a player whose first `round_started` is ≥ 7 days ago (so a D7 return is even possible). This guards the **retention** floors.
 
-### Pinned provisional values (the author's discretion per Open Question 3 — refine against the live baseline)
+### Pinned provisional values (provisional per Open Question 3 — refine against the live baseline)
 
 - **N = 30 completed rounds per cell.**
 - **M = 100 D7-eligible players.**

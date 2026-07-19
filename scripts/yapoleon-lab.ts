@@ -3,11 +3,11 @@
  *
  * FORKED from yapword's scripts/yapoleon-lab.ts (the Joke Lab that rendered the
  * REAL in-game lines for review). RE-POINTED (Plan 01-04, D-02 / CONT-01): this
- * game has no Wordle jokes — the thing the author drafts and the author voice-reviews is
+ * game has no Wordle jokes — the thing drafted and voice-reviewed is
  * the 30-demand calibration bank. So the lab now renders the authored demand
  * SCENES — Yapoleon's in-voice framing of each day's demand — into a clean
  * markdown REVIEW SHEET (one row per demand: id, scene, proposed axisWeights,
- * intended D-03 bucket). That sheet is exactly what the author skims in Task 3 to
+ * intended D-03 bucket). That sheet is exactly what a reviewer skims to
  * mark the demands "approved" (or list which to revise).
  *
  * Authoring/review tool ONLY — never imported at runtime, never shipped.

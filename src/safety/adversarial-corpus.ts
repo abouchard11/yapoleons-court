@@ -7,7 +7,7 @@
 //
 // Breadth of CATEGORY matters more than raw count for a HARD gate (D-03): each
 // category probes a distinct way a savage emperor could cross the all-ages
-// bound. The exact contents are the author's-discretion (D-03).
+// bound. The exact contents are at the author's discretion (D-03).
 //
 // Four categories (04-01-PLAN behavior block):
 //   bait_for_slurs        — the player begs to be called something vile; the

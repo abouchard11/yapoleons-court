@@ -136,12 +136,12 @@ function measureWrappedHeight(
 /**
  * The in-voice caption + court.yapoleon.com link that travel WITH the card PNG.
  *
- * ── IN-VOICE DRAFTS (02-06) — pending the operator's Task-2 voice-review (D-06) ──
- * the author-drafted in register (Wilde/Twain epigram, ego-is-the-joke, all-ages/PG,
+ * ── IN-VOICE DRAFTS (02-06) — pending a voice-review (D-06) ──
+ * Drafted in register (Wilde/Twain epigram, ego-is-the-joke, all-ages/PG,
  * third-person "Yapoleon", no emoji for clean OS share sheets). The savagery targets
  * the GAME / Yapoleon's own deniable ego — NEVER the player or protected traits (D-04;
- * must not obviously fail the Phase-4 safe-savagery bound). the author drafts → the author
- * approves: these are NOT final. The caption + URL carry NO PII (anonymous play —
+ * must not obviously fail the Phase-4 safe-savagery bound). Drafted, then
+ * voice-reviewed: these are NOT final. The caption + URL carry NO PII (anonymous play —
  * T-02-14 / SAFE-03, COPPA-safe).
  *
  *   WIN  — a brag the winner posts; the joke is Yapoleon's grudging, deniable defeat.

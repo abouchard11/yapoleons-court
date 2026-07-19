@@ -10,9 +10,9 @@
 // Fair Fight 55–70% median win-rate calibration gate (Plan 01-06) runs against.
 // It replaces the 2–3-record seed bank from the Walking Skeleton.
 //
-// D-02 (authoring workflow): the author drafted these 30 scenes directly in
+// D-02 (authoring workflow): these 30 scenes were drafted directly in
 // Yapoleon's voice (using src/prompts/yapoleon.ts as the canonical register) →
-// the author voice-reviews ONCE (Plan 01-04 Task 3) before they count as shippable
+// then voice-reviewed once before they count as shippable
 // (CONT-01). NOT cron-LLM-generated; NOT hand-authored-daily. (The live
 // scripts/yapoleon-lab.ts render path is offline-by-default because the only
 // GEMINI_API_KEY is at its monthly spend cap — the scenes are authored text,

@@ -52,7 +52,7 @@ export interface YapoleonSplitPrompt {
 // *** VOICE-02 / Tier-1 baseline — CARRIED BYTE-FOR-BYTE FROM YAPWORD. ***
 // YAPOLEON_EXAMPLES + YAPOLEON_SYSTEM_PROMPT below are the canonical baseline
 // personality. They are the IP. Do NOT mutate a single character here — a
-// baseline-voice change requires a Voice Lab session with the author, not a refactor
+// baseline-voice change requires a dedicated voice review, not a refactor
 // (the project's voice invariants). voice-integrity.test.ts pins the opening
 // sentence byte-for-byte; a mutation fails the build.
 
