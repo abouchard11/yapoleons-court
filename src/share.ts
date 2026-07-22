@@ -28,6 +28,15 @@
 
 import { trackEvent } from './gemini-client';
 import { getPlayerId } from './court-identity';
+import { MAX_TURNS } from './config';
+import {
+  GAZETTE,
+  gazetteKicker,
+  gazetteMeta,
+  headlineText,
+  mastheadDate,
+  pickHeadlineSize,
+} from './gazette';
 
 // ── Types ──
 
@@ -54,19 +63,17 @@ export interface VerdictCardData {
   tierLabel: string;
   /** Consecutive days won (live-derived server fact, D-03 — from court-can-play). */
   winStreak: number;
+  /** The daily puzzle index (round.day) — the gazette's "№ {day}" series key. */
+  day: number;
 }
 
 // ── Canvas light-palette lock (UI-SPEC) ──
-// Hard-coded so the card looks IDENTICAL for every recipient regardless of the
-// sharer's dark/light appearance (yapword game.ts:1206-1209 light-palette lock).
-// Color reservation (Pitfall 5): GOLD = WIN key only (MUST NOT touch the dismissal
-// card); CRIMSON = LOSS key only (MUST NOT touch the concession card). Win/loss is
-// ALSO carried by TEXT (a11y), never by color alone.
-const CREAM = '#FBF6EC'; // background
-const NAVY = '#1B2A4A'; // dominant ink (wordmark, hero, meta)
-const INK = '#1F1C16'; // warm near-black body (demand framing, footer)
-const GOLD = '#E8B84B'; // WIN key only
-const CRIMSON = '#C8302A'; // LOSS key only
+// The gazette palette lives in gazette.ts (GAZETTE) — hard-coded so the card looks
+// IDENTICAL for every recipient regardless of the sharer's dark/light appearance.
+// Color reservation (Pitfall 5) is ENCODED in gazetteKicker (unit-tested): the
+// kicker chip is the ONLY win/loss color decision on the card — gold never touches
+// a dismissal, crimson never touches a concession, outcome always in TEXT too.
+const DECK_INK = '#3C3831'; // deck (demand framing) — darker than GAZETTE.MUTED
 
 // ── Canvas geometry (its own 1080px pixel budget — NOT the in-app 4px grid) ──
 const SIZE = 1080; // FIXED square: width AND height are literal 1080 (D-01).
@@ -79,6 +86,10 @@ const WRAP_MAX_W = SIZE - 200; // 880px — keeps wrapped lines off the border.
 // Font family names — MUST match the @font-face entries in src/index.css.
 const FAMILY_DISPLAY = '"Bricolage Grotesque", system-ui, sans-serif';
 const FAMILY_BODY = 'Inter, system-ui, sans-serif';
+// Typewriter voice for the masthead date + meta strip. Deliberately a SYSTEM stack
+// (no bundled file): American Typewriter on Apple platforms, Courier elsewhere —
+// decorative flavor where a fallback shift is acceptable (unlike the headline).
+const FAMILY_TYPEWRITER = '"American Typewriter", "Courier New", Courier, monospace';
 
 // ── Verbatim from yapword/src/game.ts (battle-tested; copy unchanged) ──
 
@@ -169,26 +180,37 @@ export function buildVerdictShareParts(outcome: 'won' | 'lost'): ShareParts {
   };
 }
 
-// ── The 1080×1080 typographic verdict-card renderer ──
+// ── The 1080×1080 gazette verdict-card renderer (Direction 02, 2026-07-22) ──
 
 /**
- * Render the concession (win) or dismissal (loss) card to a 1080×1080 PNG Blob.
+ * Render the concession (win) or dismissal (loss) card as the day's front page of
+ * LE GAZETTE DU COURT (design: hq/outputs/gazette-verdict-card-spec.md).
  *
- * Composition (centered, top→bottom): wordmark "Yapoleon's Court" → demand
- * framing (the setup) → hero line (the winning line on a win / the savage
- * dismissal line on a loss) → concession line (WIN only) → meta line → footer URL.
- * The hero line is the largest emotional beat (UI-SPEC hierarchy).
+ * Composition, top → bottom on newsprint:
+ *   masthead row ("LE GAZETTE DU COURT" left · "№ {day} · {Republican month}" right)
+ *   → 8px rule → kicker chip (the one win/loss color: gold EXCLUSIVE·CONCESSION /
+ *   crimson SCANDALE·DISMISSED) → the hero line as an UPPERCASE headline
+ *   (length-aware 96→64px, ≤4 lines, never truncated) → the demand framing as an
+ *   italic deck → bottom rule → meta strip (outcome in text) + court.yapoleon.com.
+ *
+ * Fit guarantee: the headline steps down first (pickHeadlineSize); if the middle
+ * stack STILL overflows (marathon demand text), one uniform downscale pass absorbs
+ * the rest — smaller fonts re-wrap to ≤ the same line count, so the second measure
+ * is exact. Nothing is ever clipped or ellipsized.
  *
  * Throws on canvas/toBlob failure — the caller (Plan 06) surfaces the error state
  * ("The Emperor's portraitist faltered.") rather than swallowing it.
  */
 export async function drawVerdictCard(data: VerdictCardData): Promise<Blob> {
-  const won = data.outcome === 'won';
-  // Color reservation (Pitfall 5): the win key is GOLD and the loss key is CRIMSON.
-  // `accent` is the ONLY place the win/loss key color is chosen — gold never
-  // touches a dismissal card and crimson never touches a concession card because
-  // each card only ever reads its own `accent`.
-  const accent = won ? GOLD : CRIMSON;
+  const kicker = gazetteKicker(data.outcome);
+  const headline = headlineText(data.outcome, data.heroLine);
+  const metaLine = gazetteMeta(data.outcome, {
+    turnsUsed: data.turnsUsed,
+    tierLabel: data.tierLabel,
+    winStreak: data.winStreak,
+    maxTurns: MAX_TURNS,
+  });
+  const dateLine = mastheadDate(data.day, new Date());
 
   const c = document.createElement('canvas');
   c.width = SIZE;
@@ -196,170 +218,115 @@ export async function drawVerdictCard(data: VerdictCardData): Promise<Blob> {
   const x = c.getContext('2d');
   if (!x) throw new Error('Canvas unsupported');
 
-  // Font-readiness (WKWebView fix — yapword game.ts:1119-1133). Explicitly load
-  // EACH weight/size actually drawn below; `document.fonts.ready` resolves
-  // prematurely on WKWebView (Apple Bug #31423200). Non-fatal: a failed load lets
-  // the canvas fall back to system-ui rather than throw.
+  // Font-readiness (WKWebView fix — Apple Bug #31423200): load each bundled
+  // weight actually drawn. The typewriter stack is system fonts — nothing to load.
   try {
     await Promise.all([
-      document.fonts.load('700 96px "Bricolage Grotesque"'), // wordmark
-      document.fonts.load('700 48px "Bricolage Grotesque"'), // hero line
-      document.fonts.load('500 40px Inter'), // demand framing
-      document.fonts.load('500 44px Inter'), // concession line
-      document.fonts.load('500 36px Inter'), // meta line
-      document.fonts.load('500 32px Inter'), // footer
+      document.fonts.load('700 96px "Bricolage Grotesque"'), // headline (any size loads the face)
+      document.fonts.load('700 46px "Bricolage Grotesque"'), // masthead
+      document.fonts.load('700 26px Inter'), // kicker
+      document.fonts.load('italic 500 30px Inter'), // deck
+      document.fonts.load('700 24px Inter'), // footer URL
     ]);
   } catch {
     /* non-fatal — canvas falls back to system-ui */
   }
 
-  // ── Background + reserved-accent frame ──
-  x.fillStyle = CREAM;
-  x.fillRect(0, 0, SIZE, SIZE);
-  x.strokeStyle = accent; // gold on win, crimson on loss — the reserved key.
-  x.lineWidth = BORDER_W;
-  x.strokeRect(BORDER, BORDER, SIZE - BORDER * 2, SIZE - BORDER * 2);
+  const MX = 100; // side margin; keeps every band on the same 880px measure as WRAP_MAX_W
+  const MW = SIZE - MX * 2;
 
-  x.textAlign = 'center';
+  // ── Newsprint ground ──
+  x.fillStyle = GAZETTE.PAPER;
+  x.fillRect(0, 0, SIZE, SIZE);
   x.textBaseline = 'alphabetic';
 
-  // ── Two-pass: measure each wrapped block, then center the stack vertically ──
-  // Quotation marks frame the hero/concession lines (yapword's roast convention).
-  const heroText = `“${data.heroLine}”`;
-  const concessionText = data.concessionLine ? `“${data.concessionLine}”` : '';
-  const turnWord = data.turnsUsed === 1 ? 'turn' : 'turns';
-  const streakBit = data.winStreak > 0 ? ` · 🔥 ${data.winStreak}-day streak` : '';
-  const metaLine = won
-    ? `Favor won in ${data.turnsUsed} ${turnWord} · ⚔️ ${data.tierLabel}${streakBit}`
-    : `Dismissed · ⚔️ ${data.tierLabel}${streakBit}`;
+  // ── Masthead row + rule (fixed band) ──
+  x.fillStyle = GAZETTE.PRINT;
+  x.textAlign = 'left';
+  x.font = `700 46px ${FAMILY_DISPLAY}`;
+  x.fillText('LE GAZETTE DU COURT', MX, 128);
+  x.textAlign = 'right';
+  x.font = `500 26px ${FAMILY_TYPEWRITER}`;
+  x.fillText(dateLine, SIZE - MX, 128);
+  x.fillRect(MX, 152, MW, 8);
 
-  // Center the content stack within the padded card box.
-  const boxTop = PAD_TOP;
-  const boxBottom = SIZE - PAD_BOTTOM;
-  const boxH = boxBottom - boxTop; // 920 (D-01).
+  // ── Bottom band (fixed): rule + meta strip + URL ──
+  const RULE2_Y = 930;
+  x.fillRect(MX, RULE2_Y, MW, 2);
+  // If meta + URL would collide on the 880px measure, shrink both a notch (no clipping).
+  let bottomPx = 24;
+  x.font = `500 ${bottomPx}px ${FAMILY_TYPEWRITER}`;
+  const metaW = x.measureText(metaLine).width;
+  x.font = `700 ${bottomPx}px ${FAMILY_BODY}`;
+  const urlW = x.measureText('court.yapoleon.com').width;
+  if (metaW + urlW + 24 > MW) bottomPx = 21;
+  const bottomBaseline = RULE2_Y + 58;
+  x.textAlign = 'left';
+  x.fillStyle = GAZETTE.MUTED;
+  x.font = `500 ${bottomPx}px ${FAMILY_TYPEWRITER}`;
+  x.fillText(metaLine, MX, bottomBaseline);
+  x.textAlign = 'right';
+  x.fillStyle = GAZETTE.PRINT;
+  x.font = `700 ${bottomPx}px ${FAMILY_BODY}`;
+  x.fillText('court.yapoleon.com', SIZE - MX, bottomBaseline);
 
-  // ── FIT-TO-CARD uniform downscale (never clip — keep the meta line + footer URL) ──
-  // Every type size, line-height, fixed band, inter-section gap, AND baseline-advance
-  // offset is multiplied by a single `scale`. WRAP_MAX_W stays FIXED: at a smaller font
-  // the same 880px wrap re-flows to ≤ the same line count, so the scaled stack is
-  // smaller-or-equal — re-measuring at the scaled sizes gives the true scaled contentH.
-  // base sizes (scale = 1) are the UI-SPEC values. `fz` scales any one of them.
-  const fz = (n: number, scale: number) => n * scale;
+  // ── Middle stack: kicker chip → headline → deck (top-aligned, newspaper-style) ──
+  const stackTop = 160 + 56; // below the masthead rule, one breath down
+  const stackBottom = RULE2_Y - 48;
+  const avail = stackBottom - stackTop;
 
-  // Measure the whole stack at a given scale. The wrapped blocks (framing/hero/
-  // concession) are re-measured at the scaled font sizes against the FIXED WRAP_MAX_W.
-  // `x` is passed in (TS control-flow narrowing of the null-guard above doesn't cross
-  // the closure boundary; a typed parameter keeps it non-null without a `!` assertion).
-  function measure(scale: number, x: CanvasRenderingContext2D) {
-    // Fixed-height single-line bands.
-    const wordmarkH = fz(96, scale);
-    const metaH = fz(36, scale);
-    const footerH = fz(32, scale);
-    // Section line-heights (the canvas vertical rhythm — measured-section, not a grid).
-    const framingLH = fz(50, scale);
-    const heroLH = fz(58, scale);
-    const concessionLH = fz(56, scale);
-    // Inter-section gaps (canvas px — generous breathing room, not the 4-grid).
-    const gapAfterWordmark = fz(64, scale);
-    const gapAfterFraming = fz(56, scale);
-    const gapAfterHero = fz(56, scale);
-    const gapAfterConcession = won && concessionText ? fz(56, scale) : 0;
-    const gapBeforeFooter = fz(56, scale);
-    // Wrapped-block heights — re-measured at the SCALED font sizes (WRAP_MAX_W fixed).
-    x.font = `500 ${fz(40, scale)}px ${FAMILY_BODY}`;
-    const framingH = measureWrappedHeight(x, data.demandScene, WRAP_MAX_W, framingLH);
-    x.font = `700 ${fz(48, scale)}px ${FAMILY_DISPLAY}`;
-    const heroH = measureWrappedHeight(x, heroText, WRAP_MAX_W, heroLH);
-    let concessionH = 0;
-    if (won && concessionText) {
-      x.font = `500 ${fz(44, scale)}px ${FAMILY_BODY}`;
-      concessionH = measureWrappedHeight(x, concessionText, WRAP_MAX_W, concessionLH);
-    }
-    const contentH =
-      wordmarkH +
-      gapAfterWordmark +
-      framingH +
-      gapAfterFraming +
-      heroH +
-      gapAfterHero +
-      concessionH +
-      gapAfterConcession +
-      metaH +
-      gapBeforeFooter +
-      footerH;
-    return {
-      scale,
-      contentH,
-      wordmarkH,
-      metaH,
-      footerH,
-      framingLH,
-      heroLH,
-      concessionLH,
-      framingH,
-      heroH,
-      concessionH,
-      gapAfterWordmark,
-      gapAfterFraming,
-      gapAfterHero,
-      gapAfterConcession,
-      gapBeforeFooter,
-    };
+  // Headline size steps down FIRST (the length-aware move)…
+  const measurePx = (text: string, px: number): number => {
+    x.font = `700 ${px}px ${FAMILY_DISPLAY}`;
+    return x.measureText(text).width;
+  };
+  const fit = pickHeadlineSize(measurePx, headline, WRAP_MAX_W);
+
+  // …then one uniform downscale absorbs anything the floor could not (never clip).
+  function measureStack(scale: number, x2: CanvasRenderingContext2D) {
+    const kickerFont = 26 * scale;
+    const kickerH = 54 * scale;
+    const gapAfterKicker = 52 * scale;
+    const heroPx = fit.px * scale;
+    const heroLH = heroPx * 1.12;
+    x2.font = `700 ${heroPx}px ${FAMILY_DISPLAY}`;
+    const heroH = measureWrappedHeight(x2, headline, WRAP_MAX_W, heroLH);
+    const gapAfterHero = 44 * scale;
+    const deckPx = 30 * scale;
+    const deckLH = 44 * scale;
+    x2.font = `italic 500 ${deckPx}px ${FAMILY_BODY}`;
+    const deckH = measureWrappedHeight(x2, data.demandScene, WRAP_MAX_W, deckLH);
+    const contentH = kickerH + gapAfterKicker + heroH + gapAfterHero + deckH;
+    return { scale, kickerFont, kickerH, gapAfterKicker, heroPx, heroLH, heroH, gapAfterHero, deckPx, deckLH, deckH, contentH };
   }
+  let m = measureStack(1, x);
+  if (m.contentH > avail) m = measureStack(avail / m.contentH, x);
 
-  // Measure at scale 1; if the natural stack overflows the box, re-measure at the
-  // downscale that makes it fit (smaller fonts re-wrap, so the second measure is exact).
-  let m = measure(1, x);
-  if (m.contentH > boxH) {
-    m = measure(boxH / m.contentH, x);
-  }
+  let y = stackTop;
 
-  // Center the (now guaranteed-to-fit) stack vertically within the padded box.
-  let y = boxTop + Math.max(0, (boxH - m.contentH) / 2);
+  // Kicker chip — the single win/loss color decision (gazetteKicker, unit-tested).
+  x.font = `700 ${m.kickerFont}px ${FAMILY_BODY}`;
+  const kickerTextW = x.measureText(kicker.label).width;
+  const chipW = kickerTextW + 56 * m.scale;
+  x.fillStyle = kicker.fill;
+  x.fillRect(SIZE / 2 - chipW / 2, y, chipW, m.kickerH);
+  x.fillStyle = kicker.ink;
+  x.textAlign = 'center';
+  x.textBaseline = 'middle';
+  x.fillText(kicker.label, SIZE / 2, y + m.kickerH / 2 + 1);
+  x.textBaseline = 'alphabetic';
+  y += m.kickerH + m.gapAfterKicker;
 
-  // ── Wordmark "Yapoleon's Court" (Bricolage 700, navy) ──
-  x.fillStyle = NAVY;
-  x.font = `700 ${fz(96, m.scale)}px ${FAMILY_DISPLAY}`;
-  y += m.wordmarkH; // advance to baseline
-  x.fillText("Yapoleon's Court", SIZE / 2, y);
-  y += m.gapAfterWordmark;
-
-  // ── Demand framing — the setup (Inter 500, warm ink) ──
-  x.fillStyle = INK;
-  x.font = `500 ${fz(40, m.scale)}px ${FAMILY_BODY}`;
-  wrapText(x, data.demandScene, SIZE / 2, y + fz(40, m.scale), WRAP_MAX_W, m.framingLH);
-  y += m.framingH + m.gapAfterFraming;
-
-  // ── Hero line — the largest emotional beat (Bricolage 700, navy) ──
-  // WIN: the player's winning reply (brag). LOSS: the savage dismissal line.
-  x.fillStyle = NAVY;
-  x.font = `700 ${fz(48, m.scale)}px ${FAMILY_DISPLAY}`;
-  wrapText(x, heroText, SIZE / 2, y + fz(48, m.scale), WRAP_MAX_W, m.heroLH);
+  // Headline — the hero line as the day's scoop (print black, never the key color).
+  x.fillStyle = GAZETTE.PRINT;
+  x.font = `700 ${m.heroPx}px ${FAMILY_DISPLAY}`;
+  wrapText(x, headline, SIZE / 2, y + m.heroPx, WRAP_MAX_W, m.heroLH);
   y += m.heroH + m.gapAfterHero;
 
-  // ── Concession line — WIN only (Inter 500, accent=gold) ──
-  if (won && concessionText) {
-    x.fillStyle = accent; // gold — the trophy beat. Never drawn on a loss card.
-    x.font = `500 ${fz(44, m.scale)}px ${FAMILY_BODY}`;
-    wrapText(x, concessionText, SIZE / 2, y + fz(44, m.scale), WRAP_MAX_W, m.concessionLH);
-    y += m.concessionH + m.gapAfterConcession;
-  }
-
-  // ── Meta line (Inter 500, navy) ──
-  // Win/loss is carried by TEXT here (a11y), never color alone:
-  //   WIN:  "Favor won in N · Fair Fight · 🔥 N-day streak"
-  //   LOSS: "Dismissed · Fair Fight" (+ streak if the player still holds a run)
-  x.fillStyle = NAVY;
-  x.font = `500 ${fz(36, m.scale)}px ${FAMILY_BODY}`;
-  y += m.metaH; // advance to baseline
-  x.fillText(metaLine, SIZE / 2, y);
-  y += m.gapBeforeFooter;
-
-  // ── Footer URL (Inter 500, ink) ──
-  x.fillStyle = INK;
-  x.font = `500 ${fz(32, m.scale)}px ${FAMILY_BODY}`;
-  y += m.footerH;
-  x.fillText('court.yapoleon.com', SIZE / 2, y);
+  // Deck — the demand framing as an italic newspaper deck.
+  x.fillStyle = DECK_INK;
+  x.font = `italic 500 ${m.deckPx}px ${FAMILY_BODY}`;
+  wrapText(x, data.demandScene, SIZE / 2, y + m.deckPx, WRAP_MAX_W, m.deckLH);
 
   // ── Canvas → PNG Blob ──
   return await new Promise<Blob>((resolve, reject) => {
