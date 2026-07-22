@@ -235,6 +235,7 @@ export default function RoundScreen() {
       turnsUsed: round.turns.length,
       tierLabel: 'Fair Fight',
       winStreak,
+      day: round.day,
     };
 
     setCardError(false);
