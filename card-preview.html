@@ -1,0 +1,39 @@
+<!doctype html>
+<!-- Dev-only harness for iterating on the verdict card (not in the build: vite only
+     bundles index.html). Renders one win + one loss card from fixture data. -->
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Verdict card preview (dev)</title>
+  <style>
+    body { background: #202126; margin: 0; padding: 24px; display: flex; gap: 24px; flex-wrap: wrap; }
+    img { width: 480px; height: 480px; box-shadow: 0 8px 30px rgba(0,0,0,.4); }
+  </style>
+</head>
+<body>
+  <script type="module">
+    import '/src/index.css';
+    import { drawVerdictCard } from '/src/share.ts';
+
+    const base = {
+      demandScene: 'Today the Emperor demands a compliment he has never heard before.',
+      turnsUsed: 2,
+      tierLabel: 'Fair Fight',
+      winStreak: 4,
+      day: 37,
+    };
+    const cases = [
+      { ...base, outcome: 'won', heroLine: "Your ego needs no flattery — it's already the best-fed thing in France", concessionLine: 'Fine. That one was new.' },
+      { ...base, outcome: 'lost', turnsUsed: 3, winStreak: 0, heroLine: 'I have heard better flattery from the horse' },
+    ];
+    for (const data of cases) {
+      const blob = await drawVerdictCard(data);
+      const img = document.createElement('img');
+      img.src = URL.createObjectURL(blob);
+      img.id = data.outcome;
+      document.body.appendChild(img);
+    }
+    document.title = 'cards-ready';
+  </script>
+</body>
+</html>
