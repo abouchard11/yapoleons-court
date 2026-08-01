@@ -35,14 +35,21 @@ export const clamp01 = (n: number): number => Math.max(0, Math.min(1, Number(n) 
 // fairfight-v2 (Phase 2: JUDGE-04/06 hardening). The CURVE below is byte-unchanged
 // from the fairfight-v1 calibration — CALIBRATED 2026-06-15 (Plan 01-06, D-07) via a
 // capture-once-then-fit-offline sweep over a pooled 6-run sample (see CALIBRATION.md).
-// The representative (mid) player's Fair Fight win-rate lands at ~62% (61–63% across two
-// independent live runs; target 55–70%), with weak≈0% / strong≈96% (learnable) and the
-// fixed mold losing on its off-axis days. The CALIBRATION METRIC is the mean/overall mid
-// win-rate: the per-demand median is bimodal/degenerate (~1 of 30 demands is "contested"),
-// so it is not tunable — see CALIBRATION.md "Why mean, not median". The v2 bump (JUDGE-08)
-// records that the PROMPT-side scoring changed (flattery now scores lower, injection now
-// docks); the favor MATH (mapToBand / deriveFavorDelta) is unchanged — Plan 02-02 re-runs
-// the calibration sweep to confirm the band still holds under the hardened prompt.
+// The CALIBRATION METRIC is the mean/overall mid win-rate: the per-demand median is
+// bimodal/degenerate (~1 of 30 demands is "contested"), so it is not tunable — see
+// CALIBRATION.md "Why mean, not median". The v2 bump (JUDGE-08) records that the
+// PROMPT-side scoring changed (flattery now scores lower, injection now docks); the favor
+// MATH (mapToBand / deriveFavorDelta) is unchanged from v1.
+//
+// MEASURED UNDER v2 (Plan 02-02, live 2026-06-16, runsPerCell 3, 1095 judge calls, 0
+// errors — see CALIBRATION-v2.md): representative (mean mid) win-rate 72.2%, weak 0%,
+// strong 96.7% (learnable), fixed mold 0% off-axis (the structural defense holds), and all
+// 5 anti-gaming probes PASS live. 72.2% sits ~2.2 pts above the 55–70% target ceiling —
+// within the 3-run sampling band, and partly the intended F2 effect (legitimate boldness is
+// no longer mis-docked as insolence). Accepted and locked by operator sign-off 2026-06-16.
+//
+// (v1's ~62%, fit 2026-06-15 over a pooled 6-run sample, is the PRIOR — retained in
+// CALIBRATION.md as the method of record, not as the shipping number.)
 //   weighted 0 → −28 (worst turn, the floor of the band)
 //   weighted 1 → +52 (best turn, the top of the band)
 // Solvability invariant holds: max delta 52 × 3 turns = 156 ≥ 100 (METER-03).

@@ -79,7 +79,8 @@ const JUDGE_SCHEMA = {
 // Byte-equivalent to src/judge.ts deriveFavorDelta. The ONLY place favorDelta is
 // computed. fairfight-v2 (Phase 2: JUDGE-04/06 hardening) — the CURVE is byte-unchanged
 // from the v1 calibration (CALIBRATED 2026-06-15, Plan 01-06 — byte-equivalent to
-// src/judge.ts): weighted 0 → -28, weighted 1 → +52; mean mid win-rate ~62%. See CALIBRATION.md.
+// src/judge.ts): weighted 0 → -28, weighted 1 → +52. Mean mid win-rate measured under v2:
+// 72.2% (live 2026-06-16, 1095 calls, 0 errors); v1's ~62% is the prior. See CALIBRATION-v2.md.
 // The v2 bump records the prompt-side scoring change (JUDGE-08); the math below is unchanged.
 const clamp01 = (n) => Math.max(0, Math.min(1, Number(n) || 0));
 const mapToBand = (weighted) => Math.round(-28 + weighted * 80);

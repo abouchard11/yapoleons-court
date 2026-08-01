@@ -135,8 +135,30 @@ All model access is server-side (`/api/*`); no secret is ever exposed to the cli
 | [`api/_sanitize.js`](api/_sanitize.js) | The deterministic red-line content pre-filter |
 | [`src/judge.ts`](src/judge.ts) | The client-side favor math (byte-equivalent to the server's) |
 | [`src/safety/output-scan.ts`](src/safety/output-scan.ts) | The output-side all-ages scanner (test harness) |
+| [`scripts/yapoleon-calibrate.ts`](scripts/yapoleon-calibrate.ts) | The win-rate simulator: 30 demands × {weak, mid, strong} + a fixed-mold probe, against the real live judge |
+| [`CALIBRATION.md`](CALIBRATION.md) | v1 — the method of record: how the curve was fit, and why the metric is the mean, not the median |
+| [`CALIBRATION-v2.md`](CALIBRATION-v2.md) | v2 — the shipping numbers: live re-measurement + the five anti-gaming probes |
 | [`docs/economics/per-dau-cost-ledger.md`](docs/economics/per-dau-cost-ledger.md) | Per-DAU cost model and the spend-cap rationale |
 | [`docs/safety/age-rating-posture.md`](docs/safety/age-rating-posture.md) | The content-safety posture |
+
+## How the rubric is calibrated
+
+A rubric that scores *taste* has no reference implementation to grade against, so the
+scoring function is validated by its **properties** instead:
+
+| Property | The check | Measured (`fairfight-v2`, live 2026-06-16) |
+|---|---|---|
+| Learnable | strong > mid > weak must hold | 96.7% > 72.2% > 0% ✅ |
+| Fair | a representative player wins inside a target band | 72.2% vs a 55–70% target — ~2.2 pts high, inside 3-run sampling noise |
+| Not template-farmable | one fixed rhetorical mold must **lose** on its off-axis days | 0% off-axis ✅ (the negative control) |
+| Not gameable | 5 adversarial probes: naked flattery, prompt injection, *legitimate* audacity, delimiter breakout, grovel-on-economy | all PASS live |
+| Honest about noise | hosted inference isn't bit-reproducible at low temp | ≥3 runs/cell; the distribution is reported, never a point value |
+
+1,095 judge calls, 0 errors. The favor curve is server-owned and byte-unchanged from v1 —
+the model emits only clamped axis sub-scores and never the delta.
+
+Full method in [`CALIBRATION.md`](CALIBRATION.md) (including why the specified *median*
+metric turned out to be degenerate) and [`CALIBRATION-v2.md`](CALIBRATION-v2.md).
 
 ## License
 
