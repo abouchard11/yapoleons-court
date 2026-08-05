@@ -23,7 +23,7 @@ export const AXES: Axis[] = ['wit', 'specificity', 'audacity', 'economy', 'flatt
 // server after the model call — it is NOT part of the model's output schema.
 export interface JudgeResult {
   axisScores: Record<Axis, number>; // 0..1 each (from the model)
-  favorDelta: number;               // −20..+55 (SERVER-derived, NOT from the model)
+  favorDelta: number;               // −28..+52 (SERVER-derived, NOT from the model)
   dominantAxis: Axis;
   reaction: string;                 // in-voice line (the screenshot beat)
 }
