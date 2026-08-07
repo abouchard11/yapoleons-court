@@ -36,24 +36,72 @@
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
-      "@type": "WebApplication",
-      "name": "Yapoleon's Court",
-      "url": "https://court.yapoleon.com/",
-      "description": "A daily AI game where you win the favor of Yapoleon — a haughty, impossible-to-please emperor — by charming him with a single free-text reply to his daily demand.",
-      "applicationCategory": "GameApplication",
-      "operatingSystem": "Any",
-      "browserRequirements": "Requires JavaScript",
-      "offers": {
-        "@type": "Offer",
-        "price": "0",
-        "priceCurrency": "USD"
-      },
-      "image": "https://court.yapoleon.com/og-image.png?v=1",
-      "author": {
-        "@type": "Organization",
-        "name": "MidnightDev",
-        "url": "https://midnightdev.dev"
-      }
+      "@graph": [
+        {
+          "@type": "Person",
+          "@id": "https://midnightdev.dev/#alex-bouchard",
+          "name": "Alex Bouchard",
+          "jobTitle": "Forward-Deployed AI Lead",
+          "description": "Alex Bouchard is a Houston-based, AI-native product builder and the founder of MidnightDev. As a forward-deployed AI lead, he designs, ships, and operates consumer AI products end to end across web and iOS, including Yapword, That's My Best, and Yapoleon's Court. Before software, he spent roughly a decade in commercial real estate, closing 85+ retail transactions totaling roughly $400 million on a two-person team.",
+          "url": "https://midnightdev.dev",
+          "image": "https://midnightdev.dev/headshot.jpg",
+          "email": "mailto:alex@midnightdev.dev",
+          "homeLocation": { "@type": "Place", "name": "Houston, Texas" },
+          "worksFor": { "@id": "https://midnightdev.dev/#midnightdev" },
+          "sameAs": [
+            "https://midnightdev.dev",
+            "https://github.com/abouchard11",
+            "https://www.linkedin.com/in/alex-bouchard-ai",
+            "https://www.linkedin.com/in/alex-bouchard-70aa958",
+            "https://dev.to/abouchard11",
+            "https://x.com/alexbouchardd",
+            "https://apps.apple.com/us/developer/alex-bouchard/id6774829905"
+          ],
+          "knowsAbout": ["Applied artificial intelligence", "AI product development", "AI evaluation", "Model behavior", "Multimodal AI", "AI safety", "React", "Next.js", "TypeScript", "Python"]
+        },
+        {
+          "@type": "Organization",
+          "@id": "https://midnightdev.dev/#midnightdev",
+          "name": "MidnightDev",
+          "url": "https://midnightdev.dev",
+          "founder": { "@id": "https://midnightdev.dev/#alex-bouchard" },
+          "logo": { "@type": "ImageObject", "url": "https://midnightdev.dev/icon-512.png", "width": 512, "height": 512 },
+          "sameAs": [
+            "https://yapword.com",
+            "https://thatsmybest.com",
+            "https://court.yapoleon.com",
+            "https://x.com/YapoleonGreater",
+            "https://apps.apple.com/us/app/yapword-daily-ai-word-game/id6774829903"
+          ]
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://court.yapoleon.com/#website",
+          "name": "Yapoleon's Court",
+          "url": "https://court.yapoleon.com/",
+          "publisher": { "@id": "https://midnightdev.dev/#midnightdev" }
+        },
+        {
+          "@type": "WebApplication",
+          "@id": "https://court.yapoleon.com/#webapp",
+          "name": "Yapoleon's Court",
+          "url": "https://court.yapoleon.com/",
+          "description": "A daily AI game where you win the favor of Yapoleon — a haughty, impossible-to-please emperor — by charming him with a single free-text reply to his daily demand.",
+          "applicationCategory": "GameApplication",
+          "operatingSystem": "Any",
+          "browserRequirements": "Requires JavaScript",
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+          },
+          "image": "https://court.yapoleon.com/og-image.png?v=1",
+          "author": { "@id": "https://midnightdev.dev/#alex-bouchard" },
+          "creator": { "@id": "https://midnightdev.dev/#alex-bouchard" },
+          "publisher": { "@id": "https://midnightdev.dev/#midnightdev" },
+          "dateModified": "2026-08-07"
+        }
+      ]
     }
     </script>
 
@@ -68,6 +116,10 @@
   </head>
   <body>
     <div id="root"></div>
+    <noscript>
+      <p>Yapoleon's Court is a daily AI game where you win the favor of Yapoleon, a haughty, impossible-to-please emperor, by charming him with a single free-text reply to his daily demand. Free to play.</p>
+      <p>Built by Alex Bouchard, founder of <a href="https://midnightdev.dev">MidnightDev</a>, in Houston.</p>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
