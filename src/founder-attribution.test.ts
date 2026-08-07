@@ -72,6 +72,11 @@ describe('founder-attribution JSON-LD (index.html)', () => {
     expect(person.jobTitle).toBe('Forward-Deployed AI Lead');
   });
 
+  it('alternateName is "Alex Bouchard AI"', () => {
+    const person = findById(PERSON_ID);
+    expect(person.alternateName).toBe('Alex Bouchard AI');
+  });
+
   it('jobTitle never contains "engineer"/"engineering" (title rule)', () => {
     const person = findById(PERSON_ID);
     expect(person.jobTitle.toLowerCase()).not.toMatch(/engineer/);
