@@ -1,3 +1,26 @@
 # Yapoleon's Court — a daily AI game (court.yapoleon.com).
 User-agent: *
 Allow: /
+Disallow: /api/
+
+# AI training crawlers — disallow all
+User-agent: GPTBot
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: ClaudeBot
+Disallow: /
+
+User-agent: Bytespider
+Disallow: /
+
+User-agent: Amazonbot
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+User-agent: Applebot-Extended
+Disallow: /
