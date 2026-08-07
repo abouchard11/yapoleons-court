@@ -36,3 +36,4 @@ ios/DerivedData/
 
 # Supabase CLI scratch state (link metadata, never committed)
 supabase/.temp/
+.env*
