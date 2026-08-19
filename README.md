@@ -163,3 +163,8 @@ metric turned out to be degenerate) and [`CALIBRATION-v2.md`](CALIBRATION-v2.md)
 ## License
 
 [MIT](LICENSE) © 2026 Alex Bouchard (MidnightDev)
+
+## Related
+
+- [llm-safety-gate](https://github.com/abouchard11/llm-safety-gate) — the fail-closed classifier machine this posture is cousins with
+- [graphiti-neo4j-ops](https://github.com/abouchard11/graphiti-neo4j-ops) — hardened Graphiti/Neo4j ops
