@@ -160,10 +160,9 @@ the model emits only clamped axis sub-scores and never the delta.
 Full method in [`CALIBRATION.md`](CALIBRATION.md) (including why the specified *median*
 metric turned out to be degenerate) and [`CALIBRATION-v2.md`](CALIBRATION-v2.md).
 
-## License
+## Rights
 
-[MIT](LICENSE) © 2026 Alex Bouchard (MidnightDev)
-
+**Proprietary — all rights reserved. No license is granted.** See [LICENSE](LICENSE).
 ## Related
 
 - [llm-safety-gate](https://github.com/abouchard11/llm-safety-gate) — the fail-closed classifier machine this posture is cousins with
