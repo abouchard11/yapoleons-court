@@ -2,7 +2,7 @@
 // ============================================================================
 // COST-03 — per-DAU LLM-call + cost ledger (a READ-only aggregation).
 //
-// Aggregates the existing per-call token ledger (yapoleon_observability_events,
+// Aggregates the existing per-call token ledger (court_observability_events,
 // migration court_005) by day + mode, translates tokens to $ at verified
 // gemini-3.5-flash pricing, and divides by the per-day active-player count
 // (distinct court_rounds.player_id/day) to produce the per-DAU numbers.
@@ -19,7 +19,7 @@
 // The aggregate token/$ figure is divided by that count. We never join a token
 // row to a player_id; we divide an aggregate by a headcount.
 //
-// NOTE on the two time axes: yapoleon_observability_events is timestamped
+// NOTE on the two time axes: court_observability_events is timestamped
 // (created_at TIMESTAMPTZ); court_rounds is keyed by an integer `day`
 // (getDayNumber()), NOT a timestamp. So the token aggregate is grouped by the
 // calendar day of created_at, and the DAU denominator is the distinct-player
@@ -62,7 +62,7 @@ const PRIMARY_MODEL = 'gemini-3.5-flash';
 // summarizer: 1 (terminal round only) => MAX 5 calls per completed round (D-08).
 const MAX_CALLS_PER_ROUND = 5;
 
-const EVENTS_TABLE = 'yapoleon_observability_events';
+const EVENTS_TABLE = 'court_observability_events';
 const ROUNDS_TABLE = 'court_rounds';
 
 function getClient() {

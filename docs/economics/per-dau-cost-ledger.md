@@ -69,7 +69,7 @@ per-DAU  $   = Σ_days(per-day $) ÷ DAU-days,   where DAU-days = Σ_days(distin
 
 ## 4. The per-DAU method (why obs stays player-anonymous — D-07)
 
-`yapoleon_observability_events` has **NO `player_id` column — by design.** A token row is never joined to a player identity; that is the no-PII / COPPA-safe posture. So the per-DAU **denominator** does not come from the obs table.
+`court_observability_events` has **NO `player_id` column — by design.** A token row is never joined to a player identity; that is the no-PII / COPPA-safe posture. So the per-DAU **denominator** does not come from the obs table.
 
 **Denominator = distinct `court_rounds.player_id` per day** (an aggregate ÷ a headcount, never a per-player token join):
 
@@ -81,7 +81,7 @@ select date_trunc('day', created_at) as day, mode,
        sum(output_tokens)  as out_tok,
        sum(thoughts_tokens) as think_tok,
        sum(total_tokens)   as total_tok
-from yapoleon_observability_events
+from court_observability_events
 where created_at >= now() - interval '7 days' and status_code = 200
 group by 1, 2;
 -- $ = in_tok/1e6*1.50 + (out_tok+think_tok)/1e6*9.00   (gemini-3.5-flash, verified 2026-07-01)
@@ -153,7 +153,7 @@ The app-level damper is per-instance and best-effort. The **durable** backstop i
 
 ### 5.5 Auto-triggers are POST-LAUNCH (D-10)
 
-M1 ships the **manual** force-degrade flag + the concurrency damper so COST-04's path **exists and is testable now**. Automatic degradation (auto-detect a spike and auto-shed) is **deferred to post-launch (D-10)**. All the signals it needs are **already tracked** in `yapoleon_observability_events`, so wiring it later is additive, not a schema change:
+M1 ships the **manual** force-degrade flag + the concurrency damper so COST-04's path **exists and is testable now**. Automatic degradation (auto-detect a spike and auto-shed) is **deferred to post-launch (D-10)**. All the signals it needs are **already tracked** in `court_observability_events`, so wiring it later is additive, not a schema change:
 
 | Auto-trigger (post-launch) | Obs column that feeds it | How it would hook in |
 |----------------------------|--------------------------|----------------------|
