@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import { waitUntil } from '@vercel/functions';
 
-const EVENTS_TABLE = 'yapoleon_observability_events';
+const EVENTS_TABLE = 'court_observability_events';
 const MAX_SAMPLE_LENGTH = 280;
 
 function getSupabaseClient() {
@@ -357,7 +357,7 @@ async function sendQualityRepetitionAlert({ newLine, matchedLine, score, request
         `Time: ${new Date().toISOString()}\n\n` +
         `Gemini is UP (this was a live 200 response) — this is a humor/prompt regression, ` +
         `not an outage. Every detection is also tagged quality_repetition in ` +
-        `yapoleon_observability_events; the weekly digest totals them. Replay scenarios with ` +
+        `court_observability_events; the weekly digest totals them. Replay scenarios with ` +
         `npm run yapoleon:lab and check recent prompt-engine changes (src/prompts/yapoleon.ts).`,
     );
     await fetch(u.toString(), { method: 'GET' });
