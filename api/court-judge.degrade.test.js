@@ -52,11 +52,14 @@ function makeRes() {
 }
 
 // A valid POST request that passes origin + method + body validation and is NOT
-// a red-line reply (so it reaches the degrade/model decision point).
+// a red-line reply (so it reaches the degrade/model decision point). The bearer
+// token is REQUIRED since the 2026-10-23 hardening (the issued delta is signed for
+// the player). axisWeights is deliberately still sent here to pin that the handler
+// accepts-but-ignores the legacy field.
 function makeReq(overrides = {}) {
   return {
     method: 'POST',
-    headers: { origin: 'https://court.yapoleon.com' },
+    headers: { origin: 'https://court.yapoleon.com', authorization: 'Bearer test-player-token' },
     body: {
       scene: 'The Emperor demands you justify your presence in his court.',
       reply: 'I bring you a mirror, Sire, so you may admire the only worthy subject here.',
@@ -76,7 +79,10 @@ describe('COST-04 — DEGRADE_MODE force-degrade path', () => {
     // degrade path — no model call is made).
     priorEnv.GEMINI_API_KEY = process.env.GEMINI_API_KEY;
     priorEnv.DEGRADE_MODE = process.env.DEGRADE_MODE;
+    priorEnv.COURT_TURN_SECRET = process.env.COURT_TURN_SECRET;
     process.env.GEMINI_API_KEY = 'test-key-not-used-on-degrade-path';
+    // The per-turn signing secret is required at request time (fail closed).
+    process.env.COURT_TURN_SECRET = 'test-turn-secret';
     // Spy on global fetch. On the degrade path it must NEVER be called. If a
     // regression calls the model, we reject so the test fails loudly (and does
     // not hit the network).
@@ -91,6 +97,8 @@ describe('COST-04 — DEGRADE_MODE force-degrade path', () => {
     else process.env.GEMINI_API_KEY = priorEnv.GEMINI_API_KEY;
     if (priorEnv.DEGRADE_MODE === undefined) delete process.env.DEGRADE_MODE;
     else process.env.DEGRADE_MODE = priorEnv.DEGRADE_MODE;
+    if (priorEnv.COURT_TURN_SECRET === undefined) delete process.env.COURT_TURN_SECRET;
+    else process.env.COURT_TURN_SECRET = priorEnv.COURT_TURN_SECRET;
   });
 
   it('DEGRADE_MODE on: returns a valid JudgeResult with ZERO model calls', async () => {
@@ -115,6 +123,11 @@ describe('COST-04 — DEGRADE_MODE force-degrade path', () => {
 
     // favorDelta is a finite, server-derived number (deriveFavorDelta output).
     expect(Number.isFinite(res.body.favorDelta)).toBe(true);
+
+    // A degraded delta is still a server-issued delta: it carries the signed turnTag
+    // so court-record-round will accept it (2026-10-23).
+    expect(typeof res.body.turnTag).toBe('string');
+    expect(res.body.turnTag).toMatch(/^[0-9a-f]{64}$/);
 
     // The reaction is a non-empty cached in-voice string (NOT a model output).
     expect(typeof res.body.reaction).toBe('string');

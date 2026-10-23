@@ -1,8 +1,11 @@
 // Standalone judge client — no React dependency. Adapted from the fork source's
 // gemini-client: KEEP the analytics bridge (trackEvent), API_BASE resolution, and
 // the retry/backoff/abort loop; ADAPT the call to POST /api/court-judge with the
-// judge body { scene, reply, axisWeights } and PARSE the structured JudgeResult
-// ({ axisScores, favorDelta, dominantAxis, reaction }) instead of reading { text }.
+// judge body { scene, reply, priorReplies } and PARSE the structured JudgeResult
+// ({ axisScores, favorDelta, dominantAxis, reaction, turnTag }) instead of reading
+// { text }. Since 2026-10-23 the client does NOT send axisWeights — the server
+// selects the day's weights itself (api/_demand-weights.js); a client-supplied
+// vector would be ignored anyway.
 //
 // The judge response is NOT free text — a parse/network failure surfaces as a
 // thrown JudgeError so the RoundScreen degrades to the error state with NO turn
@@ -126,12 +129,16 @@ function parseJudgeResult(data: unknown): JudgeResult {
     ? (d.dominantAxis as Axis)
     : AXES[0];
   const reaction = typeof d.reaction === 'string' ? d.reaction : '';
-  return { axisScores, favorDelta, dominantAxis, reaction };
+  // The server's per-turn verification tag (opaque; echoed back at record time).
+  const turnTag = typeof d.turnTag === 'string' && d.turnTag ? d.turnTag : undefined;
+  return { axisScores, favorDelta, dominantAxis, reaction, ...(turnTag ? { turnTag } : {}) };
 }
 
 /**
- * Submit one turn to the judge: POST the demand's scene + axisWeights + the
- * player's reply to /api/court-judge and return the parsed JudgeResult. Retries
+ * Submit one turn to the judge: POST the demand's scene + the player's reply to
+ * /api/court-judge and return the parsed JudgeResult. The day's axis weights are
+ * NOT sent — the server owns them (it derives the day and selects the same demand
+ * this client is showing). Retries
  * transient (5xx / network) failures with backoff; throws JudgeError on a
  * deterministic 4xx or after the attempts are exhausted so the caller can render
  * the error state without consuming the turn.
@@ -145,7 +152,7 @@ export const judgeReply = async (
   const requestBody = {
     scene: demand.scene,
     reply,
-    axisWeights: demand.axisWeights,
+    // NO axisWeights: server-owned since 2026-10-23 (the field is ignored if sent).
     rubric_version: demand.rubricVersion,
     // JUDGE-05: the player's OWN earlier replies this round (server folds the deterministic
     // near-dup pre-check into the SAME judge call — voice-only, 0 extra model calls).

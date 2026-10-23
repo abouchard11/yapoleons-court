@@ -5,6 +5,7 @@ import {
   roundFromServer,
   resolveLoadedRound,
   reportPayload,
+  transcriptPayload,
   saveRound,
   loadRound,
   type RoundState,
@@ -269,5 +270,17 @@ describe('reportPayload — what is sent to the server matches the client state'
     const restored = loadRound(1);
     expect(restored).not.toBeNull();
     expect(reportPayload(restored!, 'fairfight-v0')).toEqual(reportPayload(s, 'fairfight-v0'));
+  });
+});
+
+describe('transcriptPayload — the per-turn record echoes the judge\'s turn_tag (2026-10-23)', () => {
+  it('maps each turn\'s turnTag onto turn_tag and keeps the reply verbatim (the signed text)', () => {
+    let s = startState();
+    s = applyTurn(s, '  a reply with edges  ', { ...result(20), turnTag: 'cd'.repeat(32) });
+    s = applyTurn(s, 'second', result(10)); // a pre-tag result: no turn_tag key at all
+    const t = transcriptPayload(s);
+    expect(t[0]).toMatchObject({ turn_index: 0, reply: '  a reply with edges  ', favor_delta: 20, turn_tag: 'cd'.repeat(32) });
+    expect(t[1]).toMatchObject({ turn_index: 1, reply: 'second', favor_delta: 10 });
+    expect(t[1]).not.toHaveProperty('turn_tag');
   });
 });

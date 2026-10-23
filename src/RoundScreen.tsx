@@ -301,7 +301,10 @@ export default function RoundScreen() {
       // Record the round server-side (idempotent start + progress/outcome update).
       // Best-effort: a record failure must not block the reveal (the judge already
       // ran). The reported payload is derived purely from `next` so it matches the
-      // rendered meter exactly (server-report consistency, Task 1).
+      // rendered meter exactly (server-report consistency, Task 1) — though since
+      // 2026-10-23 the server re-derives favor/turns/outcome from the tag-verified
+      // per-turn deltas in `turns` and ignores the counters; they agree for an honest
+      // client, and only the server's number is recorded for a dishonest one.
       try {
         await apiFetch('/api/court-record-round', {
           method: 'POST',
