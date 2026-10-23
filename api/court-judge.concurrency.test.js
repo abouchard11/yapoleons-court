@@ -27,6 +27,7 @@ import { fileURLToPath } from 'node:url';
 const THRESHOLD = 2;
 process.env.MAX_CONCURRENT_JUDGE = String(THRESHOLD);
 process.env.GEMINI_API_KEY = 'test-key-concurrency';
+process.env.COURT_TURN_SECRET = 'test-turn-secret'; // required at request time (fail closed)
 delete process.env.DEGRADE_MODE;
 // No Supabase env → getSupabaseClient() returns null → readShapeNotes short-circuits
 // to [] (it stays on the happy path; the point is the ORDERING of check vs increment).
@@ -56,7 +57,7 @@ function makeRes() {
 function makeReq() {
   return {
     method: 'POST',
-    headers: { origin: 'https://court.yapoleon.com' },
+    headers: { origin: 'https://court.yapoleon.com', authorization: 'Bearer test-player-token' },
     body: {
       scene: 'The Emperor demands you justify your presence in his court.',
       reply: 'I bring you a mirror, Sire, so you may admire the only worthy subject here.',

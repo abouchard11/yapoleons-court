@@ -50,6 +50,10 @@ export interface CanPlayResult {
 }
 
 // What the client reports to /api/court-record-round after each applied turn.
+// NOTE (2026-10-23): turns_used / final_favor / outcome are now INFORMATIONAL — the
+// server ignores them and derives all three from the tag-verified per-turn deltas in
+// `turns` (see TurnRecord.turn_tag). They are kept so the payload stays self-describing
+// and the server-report consistency test still has a client-side number to compare.
 export interface RoundReport {
   rubric_version: string;
   turns_used: number;
@@ -102,17 +106,22 @@ export const reportPayload = (s: RoundState, rubricVersion: string): RoundReport
 
 // One per-turn transcript record sent to /api/court-record-round (MEM-02). The
 // server persists these verbatim into court_turns (the extractive source of truth)
-// and, on a terminal round, summarizes the dossier from them.
+// and, on a terminal round, summarizes the dossier from them. Since 2026-10-23 each
+// record also carries the judge's turn_tag: the server verifies it against
+// {player, day, position, favor_delta, reply} and refuses to count a delta it did
+// not issue — so the recorded outcome is derived from these, not from RoundReport.
 export interface TurnRecord {
   turn_index: number;
   reply: string;
   reaction: string;
   favor_delta: number;
   dominant_axis: string;
+  turn_tag?: string;
 }
 
 // Project the live turns[] into the per-turn transcript — a trivial map over the
-// existing RoundState (NO schema change). reply rides verbatim (the quote source);
+// existing RoundState (NO schema change). reply rides verbatim (the quote source —
+// and the text the tag was signed over, so it must NOT be trimmed or altered here);
 // reaction/favor_delta/dominant_axis are the judge's recorded result for that turn.
 export const transcriptPayload = (s: RoundState): TurnRecord[] =>
   s.turns.map((t, i) => ({
@@ -121,6 +130,7 @@ export const transcriptPayload = (s: RoundState): TurnRecord[] =>
     reaction: t.result.reaction,
     favor_delta: t.result.favorDelta,
     dominant_axis: t.result.dominantAxis,
+    ...(t.result.turnTag ? { turn_tag: t.result.turnTag } : {}),
   }));
 
 // ── Server-authoritative replay-aware load (LOOP-05 / D-04) ──────────────────

@@ -26,6 +26,11 @@ export interface JudgeResult {
   favorDelta: number;               // −28..+52 (SERVER-derived, NOT from the model)
   dominantAxis: Axis;
   reaction: string;                 // in-voice line (the screenshot beat)
+  // The server's HMAC over {player, day, turn slot, favorDelta, reply} (api/_turn-tag.js,
+  // 2026-10-23). Opaque to the client: it is echoed back per turn to /api/court-record-round,
+  // which refuses to count any delta it cannot verify. Optional only so pre-tag cached
+  // RoundStates still type-check; a live judge response always carries it.
+  turnTag?: string;
 }
 
 // Clamp any model-emitted axis score to the valid [0,1] range. A model returning
