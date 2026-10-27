@@ -112,3 +112,35 @@ describe('judgeReply — SAFE-02 moderation bridge', () => {
     expect(result.reaction).toContain('amused');
   });
 });
+
+describe('judgeReply — server-owned weights + per-turn tag (2026-10-23)', () => {
+  it('does NOT send axisWeights in the request body (the server selects the day\'s weights)', async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(200, {
+        axisScores: { wit: 0.5, specificity: 0.5, audacity: 0.5, economy: 0.5, flattery: 0.5 },
+        favorDelta: 12,
+        dominantAxis: 'wit',
+        reaction: 'Noted.',
+        turnTag: 'ab'.repeat(32),
+      }),
+    );
+    await judgeReply(DEMAND, 'a reply');
+    const sent = JSON.parse((mockFetch.mock.calls[0][1] as RequestInit).body as string);
+    expect(sent).not.toHaveProperty('axisWeights');
+    expect(sent).toMatchObject({ scene: DEMAND.scene, reply: 'a reply', rubric_version: 'fairfight-v2' });
+  });
+
+  it('carries the server turnTag through on the JudgeResult (opaque, echoed at record time)', async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(200, {
+        axisScores: { wit: 0.5, specificity: 0.5, audacity: 0.5, economy: 0.5, flattery: 0.5 },
+        favorDelta: 12,
+        dominantAxis: 'wit',
+        reaction: 'Noted.',
+        turnTag: 'ab'.repeat(32),
+      }),
+    );
+    const result = await judgeReply(DEMAND, 'a reply');
+    expect(result.turnTag).toBe('ab'.repeat(32));
+  });
+});

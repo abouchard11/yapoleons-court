@@ -46,6 +46,13 @@ the model to inflate. Prompt injection and sycophancy-gaming can, at most, move 
 scores, and those are bounded, weighted, and re-weighted daily. See
 [`api/court-judge.js`](api/court-judge.js) (`deriveFavorDelta`, marked "the fairness backbone").
 
+**2026-10-23 — the backbone now covers the HTTP layer, not just the prompt layer.** The day's
+axis weights are selected server-side from [`api/_demand-weights.js`](api/_demand-weights.js)
+(the one table `src/demands.ts` also reads) — a client-supplied `axisWeights` is ignored. Every
+issued `favorDelta` is HMAC-signed (`COURT_TURN_SECRET`, [`api/_turn-tag.js`](api/_turn-tag.js))
+and `/api/court-record-round` derives `final_favor` / `turns_used` / outcome from the verified
+per-turn deltas alone, rejecting any unverifiable turn and never rewriting a won/lost round.
+
 ## Four threats, and how each is structurally handled
 
 **1 — Prompt injection.** The player's reply rides the request as *data being judged*, never

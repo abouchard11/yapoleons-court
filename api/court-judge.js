@@ -23,6 +23,22 @@
 //      response returns a 502 so the client degrades to the error state (no turn
 //      consumed), NEVER a broken meter.
 //
+// HTTP-LAYER HARDENING (2026-10-23) — two inputs the HTTP body used to own now
+// belong to the server, closing the gap between "the model never emits the number"
+// and "the client never chooses the number":
+//   • dayWeights are SERVER-SELECTED: the day comes from getDayNumber() (_day.js)
+//     and the weights from selectDailyWeights(day) (_demand-weights.js — the ONE
+//     weight table src/demands.ts also reads, mirrored by the same scramble). A
+//     body `axisWeights` field is accepted for backward compatibility with older
+//     clients but NEVER READ — it cannot move the delta by a single point.
+//   • every issued favorDelta is SIGNED: the response carries `turnTag`, an HMAC
+//     (_turn-tag.js, COURT_TURN_SECRET) over {bearer token, day, turn_index,
+//     favorDelta, reply}. court-record-round re-verifies the tag of every turn
+//     before it derives final_favor / turns_used / outcome, so a round can only be
+//     recorded from deltas this handler actually produced. The bearer token is
+//     therefore REQUIRED on the judge POST (401 `missing_token`), and the secret
+//     is required at request time (500 `missing_turn_secret` — fail closed).
+//
 // STRIPPED from the fork: the roast-persistence block (Phase 2) and the
 // _expressions / _content-filter imports (Wordle-specific; not in this repo).
 
@@ -38,6 +54,11 @@ import {
 import { originAllowed, setCorsHeaders } from './_cors.js';
 import { getClientIp, isIpFloodLimited, isUserRateLimited } from './_ratelimit.js';
 import { buildYapoleonPrompt } from './_yapoleon.js';
+// Server-authoritative day + the day's weights (the client's selectDailyDemand mirror).
+import { getDayNumber } from './_day.js';
+import { selectDailyWeights } from './_demand-weights.js';
+// The per-turn verification tag court-record-round checks before it counts a delta.
+import { getTurnSecret, signTurnTag } from './_turn-tag.js';
 // SAFE-02 (Plan 04-02): the deterministic red-lines input pre-filter. Runs AFTER the
 // rate-limit gate and BEFORE the single model call — a flagged reply returns a
 // distinct moderation code and NEVER reaches the model endpoint (0 extra model
@@ -262,8 +283,11 @@ function sleepWithJitter(baseMs) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// Validate the day's axis-weights (server-trusted, but a malformed shape must not
-// silently zero the math). Returns a normalized weight vector or null.
+// Validate the day's axis-weights as read from the SERVER table (_demand-weights.js).
+// The table is in-repo and test-enforced, but a malformed vector must still never
+// silently zero the math. Returns a normalized weight vector or null. (This used to
+// validate the client's body.axisWeights — that field is no longer read; see the
+// header note. The non-negative/sum>0 check was never a defence against inflation.)
 function normalizeWeights(raw) {
   if (!raw || typeof raw !== 'object') return null;
   const out = {};
@@ -276,6 +300,16 @@ function normalizeWeights(raw) {
   }
   if (sum <= 0) return null;
   return out;
+}
+
+// The turn slot this delta is being issued for — the server-assigned index court-
+// record-round will bind the tag to. Derived from the bounded priorReplies count the
+// client already sends for JUDGE-05 (its own earlier replies this round), clamped to
+// the 3-turn cap. The client cannot "choose" a slot that lets it double-count: the
+// recorder assigns turn_index from array position and verifies the tag against THAT.
+const MAX_TURNS = 3;    // LOOP-02 hard cap (server clamp; mirrors court-record-round.js)
+function turnIndexFromPrior(priorReplies) {
+  return Math.min(priorReplies.length, MAX_TURNS - 1);
 }
 
 /**
@@ -481,9 +515,19 @@ export default async function handler(req, res) {
     sendError(res, 413, requestId, 'reply_too_long', 'Reply too long');
     return;
   }
-  const dayWeights = normalizeWeights(body.axisWeights);
+  // ── SERVER-OWNED day + weights (2026-10-23) ──────────────────────────────────
+  // The day is the server's (getDayNumber — the client cannot spoof it) and the
+  // weights are selected from the in-repo table by the SAME deterministic scramble
+  // the client uses to pick the scene, so the vector below is the one that goes with
+  // the demand the player is actually answering. body.axisWeights is DELIBERATELY
+  // NOT READ: older clients may still send it (backward compat — it is ignored, not
+  // rejected, so a stale cached bundle keeps playing), but it cannot touch the math.
+  const day = getDayNumber();
+  const dayWeights = normalizeWeights(selectDailyWeights(day).axisWeights);
   if (!dayWeights) {
-    sendError(res, 400, requestId, 'invalid_weights', 'Missing or invalid "axisWeights"');
+    // A malformed TABLE entry is a server defect, not a client error — and the test
+    // suite pins every vector, so this branch should be unreachable in a shipped build.
+    sendError(res, 500, requestId, 'invalid_weights', 'Server weight table is invalid for today');
     return;
   }
   // Phase 3 (JUDGE-05): the player's OWN earlier replies this round — bounded (V5).
@@ -492,6 +536,28 @@ export default async function handler(req, res) {
     // before the cap applies (the cap is the DoS bound, not the post-filter length).
     ? body.priorReplies.slice(0, MAX_PRIOR).filter((r) => typeof r === 'string').map((r) => r.slice(0, MAX_REPLY))
     : [];
+  // The slot this delta will be signed for (see turnIndexFromPrior).
+  const turnIndex = turnIndexFromPrior(priorReplies);
+
+  // ── The per-turn tag's inputs: bearer token + server secret, both REQUIRED ──────
+  // Resolved here (before any model work) so a request we could not sign never spends
+  // a model call. The token is the identity the recorder will see; the secret is the
+  // operator's. Either missing ⇒ fail closed: an unsigned delta cannot be recorded, so
+  // issuing one would only strand the player on a turn the server will later refuse.
+  const bearerToken = extractBearerToken(req);
+  if (!bearerToken) {
+    sendError(res, 401, requestId, 'missing_token', 'Missing or malformed Authorization header');
+    return;
+  }
+  const turnSecret = getTurnSecret();
+  if (!turnSecret) {
+    sendError(res, 500, requestId, 'missing_turn_secret', 'Server is missing COURT_TURN_SECRET');
+    return;
+  }
+  // Sign one issued delta for THIS player / day / slot / reply. Called exactly where
+  // deriveFavorDelta is (the live path AND the degrade path) — nowhere else.
+  const tagFor = (favorDelta) =>
+    signTurnTag({ token: bearerToken, day, turnIndex, favorDelta, reply }, turnSecret);
 
   // Build the canonical `judging`-voice prompt once (system_instruction = the
   // untouched baseline; contents = reaction framing + scoring directive).
@@ -560,8 +626,8 @@ export default async function handler(req, res) {
   }
 
   // Rate limiting, outer to inner (denial-of-wallet bound — the 3-turn cap is the
-  // primary economic ceiling, this is the per-IP / per-user backstop).
-  const bearerToken = extractBearerToken(req);
+  // primary economic ceiling, this is the per-IP / per-user backstop). bearerToken was
+  // resolved (and required) above, alongside the tag inputs.
   const clientIp = getClientIp(req);
   if (isIpFloodLimited(clientIp)) {
     sendError(res, 429, requestId, 'ip_rate_limited', 'Too many requests. Try again in a minute.', undefined, {
@@ -573,7 +639,7 @@ export default async function handler(req, res) {
     await logOutcome({ statusCode: 429, errorCode: 'ip_rate_limited', errorDetail: 'per-ip flood bound hit' });
     return;
   }
-  if (bearerToken && isUserRateLimited(bearerToken)) {
+  if (isUserRateLimited(bearerToken)) {
     sendError(res, 429, requestId, 'user_rate_limited', 'Too many requests. Try again later.', undefined, {
       deploymentId: runtimeMeta.deploymentId,
       commitSha: runtimeMeta.commitSha,
@@ -643,8 +709,10 @@ export default async function handler(req, res) {
   // HARD INVARIANT: favorDelta is STILL derived by deriveFavorDelta from NEUTRAL
   // axis scores. The degrade decision NEVER touches the rubric, weights, or the
   // win threshold; no cost/degrade signal enters the number. The response is a
-  // valid JudgeResult { axisScores, favorDelta, dominantAxis, reaction } and the
-  // event is logged (mode:'judge', a degraded marker) for cost/quality attribution.
+  // valid JudgeResult { axisScores, favorDelta, dominantAxis, reaction } plus the
+  // signed turnTag (a degraded delta is still a server-issued delta the recorder
+  // must accept), and the event is logged (mode:'judge', a degraded marker) for
+  // cost/quality attribution.
   const overConcurrency = inFlightJudgeCount >= MAX_CONCURRENT_JUDGE;
   if (isDegradeMode() || overConcurrency) {
     const favorDelta = deriveFavorDelta(DEGRADE_AXIS_SCORES, dayWeights);
@@ -653,6 +721,7 @@ export default async function handler(req, res) {
       favorDelta,
       dominantAxis: DEGRADE_DOMINANT_AXIS,
       reaction: CACHED_REACTION,
+      turnTag: tagFor(favorDelta),
     });
     await logOutcome({
       statusCode: 200,
@@ -779,10 +848,11 @@ export default async function handler(req, res) {
 
       const reaction = typeof parsed.reaction === 'string' ? parsed.reaction : '';
 
-      // SERVER-OWNED delta (Pitfall 3 — the model never returns this).
+      // SERVER-OWNED delta (Pitfall 3 — the model never returns this), signed for
+      // this player/day/slot/reply so the recorder can prove it came from here.
       const favorDelta = deriveFavorDelta(axisScores, dayWeights);
 
-      res.status(200).json({ axisScores, favorDelta, dominantAxis, reaction });
+      res.status(200).json({ axisScores, favorDelta, dominantAxis, reaction, turnTag: tagFor(favorDelta) });
       await logOutcome({
         statusCode: 200,
         selectedModel: model,

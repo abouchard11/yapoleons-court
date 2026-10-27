@@ -5,6 +5,22 @@
 // ('won' when favor >= 100, 'lost' on the 3rd turn below 100). The UNIQUE(player_id,
 // day) row is the replay lock — clearing local storage cannot mint a new round.
 //
+// HTTP-LAYER HARDENING (2026-10-23): the counters are DERIVED, never read.
+//   • Each body.turns[i] must carry the `turn_tag` the judge issued with that delta
+//     (api/_turn-tag.js — an HMAC over {bearer token, server day, turn_index i,
+//     favor_delta, reply}). Every tag is re-verified here before the delta counts;
+//     ONE unverifiable turn rejects the whole record (422 `turn_unverified`).
+//   • final_favor = clamp(Σ verified deltas) from the FLOOR (src/round.ts applyTurn,
+//     replayed turn by turn with the same clamp), turns_used = the number of verified
+//     turns, outcome = won at ≥100 / lost on the 3rd turn below / else in_progress.
+//     body.final_favor, body.turns_used and body.outcome are accepted for backward
+//     compatibility and IGNORED — the client's rendered meter is a projection of the
+//     same server deltas, so the two agree whenever the client is honest, and only
+//     the server's number is recorded when it is not.
+//   • The UPDATE is fenced to outcome='in_progress': a round already won or lost is
+//     never rewritten (409 `round_already_terminal`). Previously a second POST could
+//     flip a lost round to won.
+//
 // Forks the bearer→lookup→RPC shape from the source record endpoint. DROPS the
 // source engine's metering RPC + credit + 402-gate branch entirely.
 
@@ -15,9 +31,12 @@ import { getDayNumber } from './_day.js';
 import { sanitizeText } from './_sanitize.js';
 import { buildYapoleonPrompt } from './_yapoleon.js';
 import { salientTokens, recordYapoleonEvent, getRuntimeMeta } from './_yapoleon-observability.js';
+import { getTurnSecret, verifyTurnTag } from './_turn-tag.js';
 
 const MAX_TURNS = 3;     // LOOP-02 hard cap
 const WIN_FAVOR = 100;   // LOOP-03 concession threshold
+const FLOOR_FAVOR = 0;   // METER-02 floor (mirrors src/round.ts — favor never renders negative)
+const MAX_REPLY = 500;   // D-05 free-text cap (the judge's bound; the tag covers the judged text)
 
 let _sb = null;
 function getSupabaseClient() {
@@ -233,10 +252,63 @@ export default async function handler(req, res) {
     res.status(400).json({ error: 'rubric_version is required' });
     return;
   }
-  const turnsUsed = Number.isFinite(body.turns_used) ? Math.trunc(body.turns_used) : 0;
-  const finalFavor = Number.isFinite(body.final_favor)
-    ? Math.max(0, Math.min(WIN_FAVOR, Math.trunc(body.final_favor)))
-    : 0;
+  // NOTE: body.turns_used / body.final_favor / body.outcome are NOT read. The
+  // outcome is derived below from the verified per-turn deltas (see the header).
+
+  // The verification secret is REQUIRED (fail closed): without it no tag can be
+  // checked, and a round must never be recorded on an unverified delta.
+  const turnSecret = getTurnSecret();
+  if (!turnSecret) {
+    res.status(500).json({ error: 'Server is missing COURT_TURN_SECRET', code: 'missing_turn_secret' });
+    return;
+  }
+
+  // Server-authoritative day — the tag binds each delta to it.
+  const day = getDayNumber();
+
+  // ── Verify every turn's tag BEFORE anything is written ─────────────────────────
+  // body.turns[] is UNTRUSTED. turn_index is the bounded array position (i), NEVER the
+  // client's value: the judge signed each delta for the slot it was issued in, so a
+  // tag presented at a different position fails to verify (a +52 cannot be echoed
+  // three times). The reply is verified RAW (the judged text — the judge rejected
+  // anything over MAX_REPLY, so a longer reply cannot carry a genuine tag) and is only
+  // sanitized afterwards for storage. A single bad turn rejects the whole record.
+  const rawTurns = Array.isArray(body.turns) ? body.turns.slice(0, MAX_TURNS) : [];
+  const verifiedTurns = [];
+  for (let i = 0; i < rawTurns.length; i++) {
+    const t = rawTurns[i];
+    const reply = typeof t?.reply === 'string' ? t.reply : '';
+    const favorDelta = Number.isFinite(t?.favor_delta) ? Math.trunc(t.favor_delta) : NaN;
+    const ok = reply.trim()
+      && reply.length <= MAX_REPLY
+      && Number.isFinite(favorDelta)
+      && verifyTurnTag(t?.turn_tag, { token, day, turnIndex: i, favorDelta, reply }, turnSecret);
+    if (!ok) {
+      res.status(422).json({
+        error: 'A turn could not be verified against the judge',
+        code: 'turn_unverified',
+        turn_index: i,
+      });
+      return;
+    }
+    verifiedTurns.push({ reply, favorDelta, reaction: t?.reaction, dominantAxis: t?.dominant_axis });
+  }
+
+  // ── Derive the counters from the verified deltas (src/round.ts applyTurn, replayed) ──
+  // favor opens at the floor and each verified delta is applied with the SAME clamp the
+  // client renders — floor 0 (METER-02), cap 100 (LOOP-03) — so the server's final_favor
+  // is the meter an honest client shows. A win at turn k ends the replay there: turns
+  // after a concession are never counted (the client refuses them too — LOOP-02).
+  let finalFavor = FLOOR_FAVOR;
+  let turnsUsed = 0;
+  for (const t of verifiedTurns) {
+    finalFavor = Math.max(FLOOR_FAVOR, Math.min(WIN_FAVOR, finalFavor + t.favorDelta));
+    turnsUsed += 1;
+    if (finalFavor >= WIN_FAVOR) break;
+  }
+  let outcome = 'in_progress';
+  if (finalFavor >= WIN_FAVOR) outcome = 'won';
+  else if (turnsUsed >= MAX_TURNS) outcome = 'lost';
 
   try {
     const sb = getSupabaseClient();
@@ -253,8 +325,6 @@ export default async function handler(req, res) {
       return;
     }
 
-    const day = getDayNumber();
-
     // Start today's round if it does not already exist (idempotent). ON CONFLICT
     // DO NOTHING means a second start returns no row — the existing row stands.
     await sb.rpc('court_start_round', {
@@ -263,13 +333,11 @@ export default async function handler(req, res) {
       p_rubric: rubricVersion,
     });
 
-    // Derive the terminal outcome server-side from the authoritative turn counters.
-    let outcome = 'in_progress';
-    if (finalFavor >= WIN_FAVOR) outcome = 'won';
-    else if (turnsUsed >= MAX_TURNS) outcome = 'lost';
-
-    // Update the (player, day) row with progress + outcome. The UNIQUE row is the
-    // lock; we never INSERT a second round for the same (player, day).
+    // Update the (player, day) row with the DERIVED progress + outcome. The UNIQUE
+    // row is the lock; we never INSERT a second round for the same (player, day).
+    // The `.eq('outcome', 'in_progress')` fence is the terminal guard: a won/lost
+    // row matches nothing, so a later POST — honest replay or forged — cannot rewrite
+    // the verdict. Zero rows updated with an existing terminal row ⇒ 409.
     const { data: updated, error: updateErr } = await sb
       .from('court_rounds')
       .update({
@@ -280,22 +348,40 @@ export default async function handler(req, res) {
       })
       .eq('player_id', player.id)
       .eq('day', day)
+      .eq('outcome', 'in_progress')
       .select('*')
       .maybeSingle();
 
-    if (updateErr || !updated) {
-      res.status(500).json({ error: 'Failed to record round', detail: updateErr?.message });
+    if (updateErr) {
+      res.status(500).json({ error: 'Failed to record round', detail: updateErr.message });
+      return;
+    }
+    if (!updated) {
+      // Nothing matched the fence. Distinguish "already terminal" (the guard did its
+      // job — 409) from "no row at all" (the start RPC failed — 500).
+      const { data: existing } = await sb
+        .from('court_rounds')
+        .select('outcome')
+        .eq('player_id', player.id)
+        .eq('day', day)
+        .maybeSingle();
+      if (existing && existing.outcome !== 'in_progress') {
+        res.status(409).json({ error: 'Round is already decided', code: 'round_already_terminal', outcome: existing.outcome });
+        return;
+      }
+      res.status(500).json({ error: 'Failed to record round', detail: 'round row missing after start' });
       return;
     }
 
     // ── Phase 3 (MEM-02): persist the verbatim transcript, then maintain the dossier ──
-    // body.turns[] is UNTRUSTED — player_id is the bearer-resolved id, never the body.
-    // Sanitize each reply/reaction before insert (V5) and bound to the 3-turn cap. The
-    // upsert is idempotent on (player_id, day, turn_index) — re-recording a turn is a
-    // no-op. favor_delta/dominant_axis are RECORDED as reported, never re-derived
-    // (the favor-derivation function is not imported here — the HARD INVARIANT, D-01).
-    const transcript = (Array.isArray(body.turns) ? body.turns : [])
-      .slice(0, MAX_TURNS)
+    // Only VERIFIED turns reach here (the tag check above ran over the same array, so
+    // the positions line up). Sanitize each reply/reaction before insert (V5). The upsert
+    // is idempotent on (player_id, day, turn_index) — re-recording a turn is a no-op.
+    // favor_delta/dominant_axis are the judge's recorded result for that turn: the delta
+    // is tag-VERIFIED (it is the judge's number), never re-derived here (the favor-
+    // derivation function is not imported — the HARD INVARIANT, D-01).
+    const transcript = verifiedTurns
+      .slice(0, turnsUsed) // turns after a concession are not part of the round
       .map((t, i) => ({
         player_id: player.id,
         day,
@@ -303,10 +389,10 @@ export default async function handler(req, res) {
         // client's value — this caps court_turns at MAX_TURNS rows per (player, day) and
         // keeps re-record a true no-op (a client cannot mint extra rows with fresh indexes).
         turn_index: i,
-        reply: sanitizeText(t?.reply, 500),
-        reaction: sanitizeText(t?.reaction, 500),
-        favor_delta: Number.isFinite(t?.favor_delta) ? Math.trunc(t.favor_delta) : 0,
-        dominant_axis: typeof t?.dominant_axis === 'string' ? t.dominant_axis.slice(0, 32) : null,
+        reply: sanitizeText(t.reply, MAX_REPLY),
+        reaction: sanitizeText(t.reaction, 500),
+        favor_delta: t.favorDelta,
+        dominant_axis: typeof t.dominantAxis === 'string' ? t.dominantAxis.slice(0, 32) : null,
       }))
       .filter((t) => t.reply); // never persist an empty/placeholder turn
 
